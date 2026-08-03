@@ -8,6 +8,7 @@ from app.api.v1 import (
     catalogos,
     contratos,
     guias_remision,
+    informes_conformidad,
     ingresos_almacen,
     inspecciones,
     inventarios_fisicos,
@@ -15,6 +16,7 @@ from app.api.v1 import (
     notas_salida,
     ordenes_compra,
     pedidos_semanales,
+    penalidades,
     planificacion,
     productos,
     proveedores,
@@ -53,7 +55,9 @@ api_router.include_router(inventarios_fisicos.router)
 api_router.include_router(transferencias_almacen.router)
 api_router.include_router(solicitudes_cocina.router)
 api_router.include_router(notas_salida.router)
+api_router.include_router(penalidades.router)
+api_router.include_router(informes_conformidad.router)
 
-# A medida que se implemente el siguiente módulo del diseño (Conformidad/
-# Pago), su router se agrega aquí, en su propio archivo
-# app/api/v1/<modulo>.py, siguiendo el mismo patrón de esta carpeta.
+# Backend de módulos funcionales completo (Módulos 1 a 5). Quedan
+# pendientes: Reportes/auditoría (transversal, sección 10 punto 7 de
+# CLAUDE.md) y el Frontend Next.js.

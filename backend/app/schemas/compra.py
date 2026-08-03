@@ -124,7 +124,7 @@ class OrdenCompraDetailOut(OrdenCompraOut):
 
 
 class OrdenCompraEstadoUpdate(BaseModel):
-    estado: str = Field(description="ANULADA")
+    estado: str = Field(description="ANULADA | CERRADO")
 
 
 # -------------------------------------------------------------- pedido semanal

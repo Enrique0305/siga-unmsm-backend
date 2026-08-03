@@ -3,6 +3,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import CurrentUser, get_current_user, require_roles
+from app.crud.informe_conformidad import informe_conformidad_repo
 from app.crud.orden_compra import orden_compra_repo
 from app.db.session import get_db
 from app.schemas.common import Page
@@ -80,11 +81,13 @@ async def cambiar_estado_orden_compra(
     orden_compra_id: int,
     data: OrdenCompraEstadoUpdate,
     db: AsyncSession = Depends(get_db),
-    _current: CurrentUser = Depends(require_roles(*ROLES_EDICION)),
+    current: CurrentUser = Depends(require_roles(*ROLES_EDICION)),
 ) -> OrdenCompraOut:
-    """Única transición soportada: EMITIDA -> ANULADA, que revierte el saldo
-    reservado del producto contratado. Se bloquea si ya hubo entregas
-    (guías) registradas sobre la OC."""
+    """EMITIDA -> ANULADA revierte el saldo reservado del producto
+    contratado (bloqueada si ya hubo entregas registradas). EMITIDA ->
+    CERRADO evalúa las actas de observación de la OC (Módulo 5): cierra
+    CERRADO si no hay ninguna rechazada, o PENALIZADO con penalidad
+    automática si la hay (bloqueada si queda alguna acta sin resolver)."""
     oc = await orden_compra_repo.get_con_detalle(db, orden_compra_id)
     if oc is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Orden de compra no encontrada")
@@ -92,6 +95,8 @@ async def cambiar_estado_orden_compra(
     try:
         if data.estado == "ANULADA":
             await orden_compra_repo.anular(db, oc)
+        elif data.estado == "CERRADO":
+            await informe_conformidad_repo.cerrar_orden_compra(db, oc, responsable_id=current.usuario_id)
         else:
             orden_compra_repo.validar_transicion(oc.estado, data.estado)
     except ValueError as exc:

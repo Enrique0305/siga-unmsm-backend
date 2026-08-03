@@ -70,3 +70,8 @@ from app.models.cocina import (  # noqa: F401
     SolicitudCocina,
     SolicitudCocinaDetalle,
 )
+from app.models.pagos import (  # noqa: F401
+    InformeConformidadDetalle,
+    InformeConformidadPago,
+    Penalidad,
+)

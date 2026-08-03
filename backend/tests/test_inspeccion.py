@@ -79,7 +79,12 @@ async def _crear_guia_completa(
     )
     assert guia_resp.status_code == 201, guia_resp.text
     guia = guia_resp.json()
-    return {"guia_remision_id": guia["guia_remision_id"], "guia_remision_detalle_id": guia["detalle"][0]["guia_remision_detalle_id"]}
+    return {
+        "guia_remision_id": guia["guia_remision_id"],
+        "guia_remision_detalle_id": guia["detalle"][0]["guia_remision_detalle_id"],
+        "orden_compra_id": orden_compra_id,
+        "orden_compra_detalle_id": orden_compra_detalle_id,
+    }
 
 
 @pytest.mark.asyncio

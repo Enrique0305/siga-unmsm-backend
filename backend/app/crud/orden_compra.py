@@ -10,8 +10,12 @@ from app.schemas.compra import OrdenCompraCreate
 EPS = 1e-6
 
 TRANSICIONES_VALIDAS: dict[str, set[str]] = {
-    "EMITIDA": {"ANULADA"},
+    "EMITIDA": {"ANULADA", "CERRADO", "PENALIZADO"},
+    # CERRADO/PENALIZADO los fija crud/informe_conformidad.py::cerrar_orden_compra
+    # (Módulo 5) tras evaluar las actas de observación de la OC.
     "ANULADA": set(),
+    "CERRADO": set(),
+    "PENALIZADO": set(),
 }
 
 

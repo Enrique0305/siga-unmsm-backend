@@ -208,6 +208,7 @@ o recetas) · RN-27 (pedido semanal separado por almacén+comedor) · RN-28
 | Inspección/Actas (RN-04/05/11, dueño de `guia_remision.estado`) | `models/inspeccion.py`, `crud/inspeccion.py`, `crud/acta_observacion.py` | `/inspecciones`, `/actas-observacion` + `/desde-inspeccion-detalle/{id}` + `/subsanaciones` + `/subsanaciones/{id}/reinspeccion` | ✅ `tests/test_inspeccion.py` |
 | Almacén — Ingresos/Stock/Kardex/Ajustes/Transferencias (RN-04/06/18/20) | `models/organizacion.py::UbicacionInterna`, `models/inventario.py`, `crud/stock.py` (helper central `registrar_movimiento`) | `/ubicaciones`, `/ingresos-almacen`, `/stock-almacen`, `/kardex`, `/ajustes-inventario`, `/mermas`, `/devoluciones`, `/inventarios-fisicos` + `/cerrar`, `/transferencias` + `/recepcion` | ✅ `tests/test_almacen.py` |
 | Módulo 4 — Cocina/Consumo (RN-07/17/20/21, activa `stock_comprometido`) | `models/cocina.py`, `crud/solicitud_cocina.py`, `crud/nota_salida.py` | `/solicitudes-cocina` + `/estado`, `/notas-salida` | ✅ `tests/test_cocina.py` |
+| Módulo 5 — Conformidad y Pagos (RN-05/10, cierra `orden_compra`) | `models/pagos.py`, `crud/informe_conformidad.py`, `crud/penalidad.py` | `PATCH /ordenes-compra/{id}/estado` (`CERRADO`), `/penalidades`, `/informes-conformidad-pago` + `/estado` | ✅ `tests/test_pagos.py` |
 
 **Seed inicial:** `app/seed.py` crea los 8 roles, las 3 sedes, los 4
 almacenes reales y el usuario admin (`docker compose exec api python -m
@@ -287,7 +288,28 @@ MySQL corriendo para testear lógica de negocio.
    `Producto.alimento_id`; `NotaSalidaDetalle.variacion_pct` compara
    despacho real contra ese teórico. RN-20 implementado desde el
    principio (no es deuda técnica aquí).
-6. **Módulo 5 — Conformidad/Pagos** (`penalidad`, `informe_conformidad_pago`)
+6. ~~**Módulo 5 — Conformidad/Pagos**~~ ✅ implementado (`penalidad`,
+   `informe_conformidad_pago` + `informe_conformidad_detalle`). Este
+   módulo no decide nada nuevo sobre calidad — solo **lee**
+   `acta_observacion.estado` (ya fijado por Inspección) para cerrar la
+   OC: `PATCH /ordenes-compra/{id}/estado` con `{"estado":"CERRADO"}`
+   ahora también acepta ese target (antes solo `ANULADA`), bloqueado si
+   queda alguna línea `OBSERVADO` sin acta resuelta
+   (`crud/informe_conformidad.py::cerrar_orden_compra`), y crea
+   `Penalidad` automática por cada acta `RECHAZADA` (monto = cantidad
+   rechazada × precio de la línea — no hay fórmula de penalidad en el
+   esquema, `contrato.penalidad_json` es JSON libre sin estructura
+   definida, así que este es el valor por defecto más defendible sin
+   inventar una interpretación arbitraria). `OrdenCompra` gana los
+   estados terminales `CERRADO`/`PENALIZADO` (antes solo `EMITIDA`/
+   `ANULADA`). El informe se genera una sola vez por OC ya cerrada,
+   recalculando conforme/retenido por línea (RN-05: observado entra a
+   pago solo si su acta quedó `SUBSANADA`) y sumando las `Penalidad` ya
+   registradas. **Cierra el backend funcional completo (Módulos 1 a
+   5)** — quedan pendientes los dos puntos transversales de abajo. Sin
+   cron para RN-10/11 (cierre mensual masivo / plazo vencido), mismo
+   hueco ya documentado para RN-12: cada OC se cierra una por una vía
+   el endpoint.
 7. **Reportes y auditoría** (usar `auditoria_log`, ya existe la tabla —
    falta decidir si se llena vía middleware/evento SQLAlchemy o
    explícitamente en cada servicio)
