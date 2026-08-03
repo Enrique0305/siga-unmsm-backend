@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.crud.base import CRUDBase
-from app.models.compras import OrdenCompra, OrdenCompraDetalle, OrdenCompraDistribucion
+from app.models.compras import AutorizacionExcedente, OrdenCompra, OrdenCompraDetalle, OrdenCompraDistribucion
 from app.models.contratos import Contrato, ProductoContratado
 from app.schemas.compra import OrdenCompraCreate
 
@@ -25,6 +25,7 @@ class CRUDOrdenCompra(CRUDBase[OrdenCompra]):
                 .selectinload(ProductoContratado.producto),
                 selectinload(OrdenCompra.detalle).selectinload(OrdenCompraDetalle.distribucion)
                 .selectinload(OrdenCompraDistribucion.almacen),
+                selectinload(OrdenCompra.detalle).selectinload(OrdenCompraDetalle.autorizaciones_excedente),
             )
         )
         return (await db.execute(stmt)).scalar_one_or_none()
@@ -145,6 +146,30 @@ class CRUDOrdenCompra(CRUDBase[OrdenCompra]):
             producto_contratado.saldo_monetario += detalle.cantidad_solicitada * detalle.precio_unitario_aplicado
 
         orden_compra.estado = "ANULADA"
+
+    async def autorizar_excedente(
+        self,
+        db: AsyncSession,
+        orden_compra_detalle_id: int,
+        cantidad_excedente: float,
+        justificacion: str,
+        autorizado_por_id: int,
+    ) -> AutorizacionExcedente:
+        """RN-03: autoriza que la línea reciba hasta cantidad_excedente por
+        encima de cantidad_solicitada (ver crud/guia_remision.py::_registrar_linea)."""
+        ocd = await db.get(OrdenCompraDetalle, orden_compra_detalle_id)
+        if ocd is None:
+            raise ValueError("La línea de orden de compra indicada no existe")
+
+        autorizacion = AutorizacionExcedente(
+            orden_compra_detalle_id=orden_compra_detalle_id,
+            cantidad_excedente=cantidad_excedente,
+            justificacion=justificacion,
+            autorizado_por_id=autorizado_por_id,
+        )
+        db.add(autorizacion)
+        await db.flush()
+        return autorizacion
 
 
 orden_compra_repo = CRUDOrdenCompra(OrdenCompra)

@@ -35,6 +35,7 @@ from app.models.contratos import (  # noqa: F401
     Proveedor,
 )
 from app.models.compras import (  # noqa: F401
+    AutorizacionExcedente,
     GuiaRemision,
     GuiaRemisionDetalle,
     OrdenCompra,

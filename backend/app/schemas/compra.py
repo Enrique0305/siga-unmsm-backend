@@ -31,6 +31,23 @@ class OrdenCompraDistribucionOut(BaseModel):
         )
 
 
+# ----------------------------------------------------- autorización excedente
+class AutorizacionExcedenteIn(BaseModel):
+    cantidad_excedente: float = Field(gt=0)
+    justificacion: str = Field(min_length=1)
+
+
+class AutorizacionExcedenteOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    autorizacion_excedente_id: int
+    orden_compra_detalle_id: int
+    cantidad_excedente: float
+    justificacion: str
+    autorizado_por_id: int
+    creado_en: datetime
+
+
 # ------------------------------------------------------------------ detalle
 class OrdenCompraDetalleIn(BaseModel):
     producto_contratado_id: int
@@ -49,7 +66,9 @@ class OrdenCompraDetalleOut(BaseModel):
     precio_unitario_aplicado: float
     cantidad_ingresada_acumulada: float
     saldo_oc: float
+    total_excedente_autorizado: float
     distribucion: list[OrdenCompraDistribucionOut]
+    autorizaciones_excedente: list[AutorizacionExcedenteOut]
 
     @classmethod
     def from_model(cls, obj) -> "OrdenCompraDetalleOut":
@@ -62,7 +81,11 @@ class OrdenCompraDetalleOut(BaseModel):
             precio_unitario_aplicado=obj.precio_unitario_aplicado,
             cantidad_ingresada_acumulada=obj.cantidad_ingresada_acumulada,
             saldo_oc=obj.saldo_oc,
+            total_excedente_autorizado=obj.total_excedente_autorizado,
             distribucion=[OrdenCompraDistribucionOut.from_model(d) for d in obj.distribucion],
+            autorizaciones_excedente=[
+                AutorizacionExcedenteOut.model_validate(a) for a in obj.autorizaciones_excedente
+            ],
         )
 
 

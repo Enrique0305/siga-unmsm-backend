@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import Computed, Date, DateTime, ForeignKey, String, UniqueConstraint, func
+from sqlalchemy import Computed, Date, DateTime, ForeignKey, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -49,6 +49,13 @@ class OrdenCompraDetalle(Base):
     distribucion: Mapped[list["OrdenCompraDistribucion"]] = relationship(
         back_populates="orden_compra_detalle", cascade="all, delete-orphan"
     )
+    autorizaciones_excedente: Mapped[list["AutorizacionExcedente"]] = relationship(
+        back_populates="orden_compra_detalle", cascade="all, delete-orphan"
+    )
+
+    @property
+    def total_excedente_autorizado(self) -> float:
+        return sum(a.cantidad_excedente for a in self.autorizaciones_excedente)
 
 
 class OrdenCompraDistribucion(Base):
@@ -128,3 +135,18 @@ class GuiaRemisionDetalle(Base):
 
     guia_remision: Mapped["GuiaRemision"] = relationship(back_populates="detalle")
     orden_compra_detalle: Mapped["OrdenCompraDetalle"] = relationship(lazy="joined")
+
+
+class AutorizacionExcedente(Base):
+    """RN-03: autoriza que una línea de OC reciba más de cantidad_solicitada."""
+
+    __tablename__ = "autorizacion_excedente"
+
+    autorizacion_excedente_id: Mapped[int] = mapped_column(primary_key=True)
+    orden_compra_detalle_id: Mapped[int] = mapped_column(ForeignKey("orden_compra_detalle.orden_compra_detalle_id"))
+    cantidad_excedente: Mapped[float]
+    justificacion: Mapped[str] = mapped_column(Text)
+    autorizado_por_id: Mapped[int] = mapped_column(ForeignKey("usuario.usuario_id"))
+    creado_en: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    orden_compra_detalle: Mapped["OrdenCompraDetalle"] = relationship(back_populates="autorizaciones_excedente")

@@ -54,15 +54,23 @@ class CRUDGuiaRemision(CRUDBase[GuiaRemision]):
     async def _registrar_linea(
         self, db: AsyncSession, guia_remision_id: int, orden_compra_id: int, data: GuiaRemisionDetalleIn
     ) -> GuiaRemisionDetalle:
-        ocd = await db.get(OrdenCompraDetalle, data.orden_compra_detalle_id)
+        stmt = (
+            select(OrdenCompraDetalle)
+            .where(OrdenCompraDetalle.orden_compra_detalle_id == data.orden_compra_detalle_id)
+            .options(selectinload(OrdenCompraDetalle.autorizaciones_excedente))
+        )
+        ocd = (await db.execute(stmt)).scalar_one_or_none()
         if ocd is None or ocd.orden_compra_id != orden_compra_id:
             raise ValueError(
                 "La línea de orden de compra indicada no pertenece a la orden de compra de esta guía"
             )
-        if data.cantidad_entregada - ocd.saldo_oc > EPS:
+
+        limite_efectivo = ocd.saldo_oc + ocd.total_excedente_autorizado  # RN-03 "salvo autorización"
+        if data.cantidad_entregada - limite_efectivo > EPS:
             raise ValueError(
                 f"RN-03: la cantidad entregada ({data.cantidad_entregada}) excede el saldo pendiente "
-                f"({ocd.saldo_oc}) de la línea de OC #{ocd.orden_compra_detalle_id}"
+                f"({ocd.saldo_oc}) más el excedente autorizado ({ocd.total_excedente_autorizado}) de "
+                f"la línea de OC #{ocd.orden_compra_detalle_id}"
             )
 
         detalle = GuiaRemisionDetalle(

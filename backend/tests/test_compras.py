@@ -315,6 +315,39 @@ async def test_flujo_compras_completo(client: AsyncClient):
     linea_actualizada = oc_actualizada.json()["detalle"][0]
     assert linea_actualizada["cantidad_ingresada_acumulada"] == pytest.approx(60.0)
     assert linea_actualizada["saldo_oc"] == pytest.approx(0.0)
+    assert linea_actualizada["total_excedente_autorizado"] == pytest.approx(0.0)
+
+    # 9a) RN-03 "salvo autorización": sin autorización, un excedente de 5 sigue bloqueado
+    excedente_bloqueado = await client.post(
+        f"/api/v1/guias-remision/{guia['guia_remision_id']}/detalle",
+        headers=headers,
+        json={"orden_compra_detalle_id": orden_compra_detalle_id, "cantidad_entregada": 5},
+    )
+    assert excedente_bloqueado.status_code == 422
+    assert "RN-03" in excedente_bloqueado.json()["detail"]
+
+    # 9b) se autoriza el excedente de 5 sobre esa línea de OC
+    autorizacion_resp = await client.post(
+        f"/api/v1/ordenes-compra/detalle/{orden_compra_detalle_id}/autorizaciones-excedente",
+        headers=headers,
+        json={"cantidad_excedente": 5, "justificacion": "Ajuste de peso del proveedor, autorizado por Logística"},
+    )
+    assert autorizacion_resp.status_code == 201, autorizacion_resp.text
+    assert autorizacion_resp.json()["cantidad_excedente"] == pytest.approx(5.0)
+
+    # 9c) con el excedente autorizado, la misma entrega de 5 ahora sí se registra
+    excedente_ok = await client.post(
+        f"/api/v1/guias-remision/{guia['guia_remision_id']}/detalle",
+        headers=headers,
+        json={"orden_compra_detalle_id": orden_compra_detalle_id, "cantidad_entregada": 5},
+    )
+    assert excedente_ok.status_code == 201, excedente_ok.text
+
+    oc_con_excedente = await client.get(f"/api/v1/ordenes-compra/{orden_compra_id}", headers=headers)
+    linea_con_excedente = oc_con_excedente.json()["detalle"][0]
+    assert linea_con_excedente["cantidad_ingresada_acumulada"] == pytest.approx(65.0)
+    assert linea_con_excedente["total_excedente_autorizado"] == pytest.approx(5.0)
+    assert len(linea_con_excedente["autorizaciones_excedente"]) == 1
 
     # 10) no se puede anular una OC con entregas ya registradas
     anular_bloqueado = await client.patch(

@@ -6,7 +6,14 @@ from app.api.deps import CurrentUser, get_current_user, require_roles
 from app.crud.orden_compra import orden_compra_repo
 from app.db.session import get_db
 from app.schemas.common import Page
-from app.schemas.compra import OrdenCompraCreate, OrdenCompraDetailOut, OrdenCompraEstadoUpdate, OrdenCompraOut
+from app.schemas.compra import (
+    AutorizacionExcedenteIn,
+    AutorizacionExcedenteOut,
+    OrdenCompraCreate,
+    OrdenCompraDetailOut,
+    OrdenCompraEstadoUpdate,
+    OrdenCompraOut,
+)
 
 router = APIRouter(prefix="/ordenes-compra", tags=["Órdenes de compra"])
 
@@ -94,3 +101,33 @@ async def cambiar_estado_orden_compra(
     await db.commit()
     await db.refresh(oc)
     return oc
+
+
+@router.post(
+    "/detalle/{orden_compra_detalle_id}/autorizaciones-excedente",
+    response_model=AutorizacionExcedenteOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def autorizar_excedente(
+    orden_compra_detalle_id: int,
+    data: AutorizacionExcedenteIn,
+    db: AsyncSession = Depends(get_db),
+    current: CurrentUser = Depends(require_roles(*ROLES_EDICION)),
+) -> AutorizacionExcedenteOut:
+    """RN-03: autoriza que esta línea de OC reciba, vía guía de remisión, hasta
+    `cantidad_excedente` por encima de `cantidad_solicitada`."""
+    try:
+        autorizacion = await orden_compra_repo.autorizar_excedente(
+            db,
+            orden_compra_detalle_id,
+            data.cantidad_excedente,
+            data.justificacion,
+            autorizado_por_id=current.usuario_id,
+        )
+        await db.commit()
+    except ValueError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+
+    await db.refresh(autorizacion)
+    return autorizacion
