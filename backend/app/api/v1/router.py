@@ -12,6 +12,7 @@ from app.api.v1 import (
     inspecciones,
     inventarios_fisicos,
     movimientos_almacen,
+    notas_salida,
     ordenes_compra,
     pedidos_semanales,
     planificacion,
@@ -19,6 +20,7 @@ from app.api.v1 import (
     proveedores,
     recetas,
     requerimientos,
+    solicitudes_cocina,
     stock,
     transferencias_almacen,
     ubicaciones,
@@ -49,8 +51,9 @@ api_router.include_router(stock.router)
 api_router.include_router(movimientos_almacen.router)
 api_router.include_router(inventarios_fisicos.router)
 api_router.include_router(transferencias_almacen.router)
+api_router.include_router(solicitudes_cocina.router)
+api_router.include_router(notas_salida.router)
 
-# A medida que se implementen los siguientes módulos del diseño (Cocina/
-# Consumo, Conformidad/Pago), sus routers se agregan aquí, cada uno en su
-# propio archivo app/api/v1/<modulo>.py, siguiendo el mismo patrón de esta
-# carpeta.
+# A medida que se implemente el siguiente módulo del diseño (Conformidad/
+# Pago), su router se agrega aquí, en su propio archivo
+# app/api/v1/<modulo>.py, siguiendo el mismo patrón de esta carpeta.

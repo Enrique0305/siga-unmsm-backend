@@ -207,6 +207,7 @@ o recetas) · RN-27 (pedido semanal separado por almacén+comedor) · RN-28
 | Módulo 3 — Compras (RN-01/02/03/09/13/15/16/19) | `models/compras.py` (incl. `AutorizacionExcedente`), `crud/orden_compra.py`, `crud/pedido_semanal.py`, `crud/guia_remision.py` | `/ordenes-compra` + `/estado` + `/detalle/{id}/autorizaciones-excedente`, `/pedidos-semanales`, `/guias-remision` + `/detalle` | ✅ `tests/test_compras.py` |
 | Inspección/Actas (RN-04/05/11, dueño de `guia_remision.estado`) | `models/inspeccion.py`, `crud/inspeccion.py`, `crud/acta_observacion.py` | `/inspecciones`, `/actas-observacion` + `/desde-inspeccion-detalle/{id}` + `/subsanaciones` + `/subsanaciones/{id}/reinspeccion` | ✅ `tests/test_inspeccion.py` |
 | Almacén — Ingresos/Stock/Kardex/Ajustes/Transferencias (RN-04/06/18/20) | `models/organizacion.py::UbicacionInterna`, `models/inventario.py`, `crud/stock.py` (helper central `registrar_movimiento`) | `/ubicaciones`, `/ingresos-almacen`, `/stock-almacen`, `/kardex`, `/ajustes-inventario`, `/mermas`, `/devoluciones`, `/inventarios-fisicos` + `/cerrar`, `/transferencias` + `/recepcion` | ✅ `tests/test_almacen.py` |
+| Módulo 4 — Cocina/Consumo (RN-07/17/20/21, activa `stock_comprometido`) | `models/cocina.py`, `crud/solicitud_cocina.py`, `crud/nota_salida.py` | `/solicitudes-cocina` + `/estado`, `/notas-salida` | ✅ `tests/test_cocina.py` |
 
 **Seed inicial:** `app/seed.py` crea los 8 roles, las 3 sedes, los 4
 almacenes reales y el usuario admin (`docker compose exec api python -m
@@ -274,8 +275,18 @@ MySQL corriendo para testear lógica de negocio.
    `INSPECTOR`) siguen sin ese chequeo pese a operar sobre recursos
    ligados a un almacén — no se tocó esos archivos ya probados, RN-20 se
    implementó recién aquí porque es donde primero importaba de verdad.
-5. **Módulo 4 — Cocina/Consumo** (`solicitud_cocina`, `nota_salida` — RN-07/17,
-   comparar consumo real vs. teórico usando `dosificacion_detalle` ya calculado)
+5. ~~**Módulo 4 — Cocina/Consumo**~~ ✅ implementado (`solicitud_cocina`,
+   `nota_salida`). Primer módulo que activa `stock_almacen_producto.
+   stock_comprometido` (`crud/stock.py::ajustar_comprometido`, helper
+   simétrico a `registrar_movimiento`): la solicitud reserva contra
+   `disponible = físico − comprometido` (RN-07/21), la nota de salida
+   libera la reserva y recién ahí hace el movimiento real de kardex
+   (`registrar_movimiento`, tipo `SALIDA`). `cantidad_teorica_bom` se
+   calcula en el servidor sumando `dosificacion_detalle.cantidad_bruta_
+   requerida` (ya calculada en Módulo 1A, RN-24) vía el puente
+   `Producto.alimento_id`; `NotaSalidaDetalle.variacion_pct` compara
+   despacho real contra ese teórico. RN-20 implementado desde el
+   principio (no es deuda técnica aquí).
 6. **Módulo 5 — Conformidad/Pagos** (`penalidad`, `informe_conformidad_pago`)
 7. **Reportes y auditoría** (usar `auditoria_log`, ya existe la tabla —
    falta decidir si se llena vía middleware/evento SQLAlchemy o

@@ -17,6 +17,23 @@ async def obtener_o_crear_stock(db: AsyncSession, almacen_id: int, producto_id: 
     return stock
 
 
+async def ajustar_comprometido(db: AsyncSession, almacen_id: int, producto_id: int, delta: float) -> StockAlmacenProducto:
+    """Reserva (`delta > 0`) o libera (`delta < 0`) stock comprometido — usado
+    por el módulo de Cocina/Consumo para RN-07/RN-21 (disponible = físico −
+    comprometido). Mismo guardián que `registrar_movimiento`: nunca deja
+    `stock_comprometido` negativo."""
+    stock = await obtener_o_crear_stock(db, almacen_id, producto_id)
+    nuevo_comprometido = stock.stock_comprometido + delta
+    if nuevo_comprometido < -EPS:
+        raise ValueError(
+            f"El ajuste dejaría stock comprometido negativo ({nuevo_comprometido}) en "
+            f"almacén #{almacen_id}, producto #{producto_id}"
+        )
+    stock.stock_comprometido = max(nuevo_comprometido, 0.0)
+    await db.flush()
+    return stock
+
+
 async def registrar_movimiento(
     db: AsyncSession,
     almacen_id: int,

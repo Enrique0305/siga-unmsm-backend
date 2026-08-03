@@ -64,3 +64,9 @@ from app.models.inventario import (  # noqa: F401
     TransferenciaAlmacen,
     TransferenciaAlmacenDetalle,
 )
+from app.models.cocina import (  # noqa: F401
+    NotaSalida,
+    NotaSalidaDetalle,
+    SolicitudCocina,
+    SolicitudCocinaDetalle,
+)
