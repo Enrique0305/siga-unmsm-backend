@@ -8,7 +8,10 @@ from app.api.v1 import (
     catalogos,
     contratos,
     guias_remision,
+    ingresos_almacen,
     inspecciones,
+    inventarios_fisicos,
+    movimientos_almacen,
     ordenes_compra,
     pedidos_semanales,
     planificacion,
@@ -16,6 +19,9 @@ from app.api.v1 import (
     proveedores,
     recetas,
     requerimientos,
+    stock,
+    transferencias_almacen,
+    ubicaciones,
     usuarios,
 )
 
@@ -37,8 +43,14 @@ api_router.include_router(pedidos_semanales.router)
 api_router.include_router(guias_remision.router)
 api_router.include_router(inspecciones.router)
 api_router.include_router(actas_observacion.router)
+api_router.include_router(ubicaciones.router)
+api_router.include_router(ingresos_almacen.router)
+api_router.include_router(stock.router)
+api_router.include_router(movimientos_almacen.router)
+api_router.include_router(inventarios_fisicos.router)
+api_router.include_router(transferencias_almacen.router)
 
-# A medida que se implementen los siguientes módulos del diseño (Kardex/Bin
-# Card, Cocina/Consumo, Conformidad/Pago), sus routers se agregan aquí, cada
-# uno en su propio archivo app/api/v1/<modulo>.py, siguiendo el mismo
-# patrón de esta carpeta.
+# A medida que se implementen los siguientes módulos del diseño (Cocina/
+# Consumo, Conformidad/Pago), sus routers se agregan aquí, cada uno en su
+# propio archivo app/api/v1/<modulo>.py, siguiendo el mismo patrón de esta
+# carpeta.

@@ -143,6 +143,19 @@ bootstrapping inicial de un módulo nuevo.
    además una relación `lazy="joined"`, el mismo `refresh()` sin
    `attribute_names` la recarga de paso.
 
+4. **PK `BIGINT AUTO_INCREMENT` (ej. `kardex_movimiento.kardex_id`,
+   `bin_card_movimiento.bin_card_id`) mapeada como `mapped_column(BigInteger,
+   primary_key=True)` revienta en los tests con SQLite** (`NOT NULL
+   constraint failed` al insertar): SQLite solo convierte una columna en
+   alias del `rowid` (con autoincremento real) cuando su tipo declarado es
+   exactamente `INTEGER`, no `BIGINT`. Como los tests corren
+   `Base.metadata.create_all()` contra SQLite (nunca contra MySQL, ver
+   sección 9), hay que declarar
+   `mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True)`
+   — en MySQL sigue siendo `BIGINT`, en SQLite se crea como `INTEGER` y
+   autoincrementa. Ver `models/inventario.py` (constante `_BigIntPK`) como
+   referencia.
+
 ## 8. Reglas de negocio (RN-01 a RN-28) — resumen de referencia
 
 El detalle completo de cada regla, con su flujo, está en
@@ -193,6 +206,7 @@ o recetas) · RN-27 (pedido semanal separado por almacén+comedor) · RN-28
 | Módulo 2 — Proveedores/Contratos (RN-12/19) | `models/contratos.py`, `crud/proveedor.py`, `crud/contrato.py` | `/proveedores`, `/contratos` + `/estado` + `/cronograma` + `/productos` | ✅ `tests/test_contratos.py` |
 | Módulo 3 — Compras (RN-01/02/03/09/13/15/16/19) | `models/compras.py` (incl. `AutorizacionExcedente`), `crud/orden_compra.py`, `crud/pedido_semanal.py`, `crud/guia_remision.py` | `/ordenes-compra` + `/estado` + `/detalle/{id}/autorizaciones-excedente`, `/pedidos-semanales`, `/guias-remision` + `/detalle` | ✅ `tests/test_compras.py` |
 | Inspección/Actas (RN-04/05/11, dueño de `guia_remision.estado`) | `models/inspeccion.py`, `crud/inspeccion.py`, `crud/acta_observacion.py` | `/inspecciones`, `/actas-observacion` + `/desde-inspeccion-detalle/{id}` + `/subsanaciones` + `/subsanaciones/{id}/reinspeccion` | ✅ `tests/test_inspeccion.py` |
+| Almacén — Ingresos/Stock/Kardex/Ajustes/Transferencias (RN-04/06/18/20) | `models/organizacion.py::UbicacionInterna`, `models/inventario.py`, `crud/stock.py` (helper central `registrar_movimiento`) | `/ubicaciones`, `/ingresos-almacen`, `/stock-almacen`, `/kardex`, `/ajustes-inventario`, `/mermas`, `/devoluciones`, `/inventarios-fisicos` + `/cerrar`, `/transferencias` + `/recepcion` | ✅ `tests/test_almacen.py` |
 
 **Seed inicial:** `app/seed.py` crea los 8 roles, las 3 sedes, los 4
 almacenes reales y el usuario admin (`docker compose exec api python -m
@@ -244,9 +258,22 @@ MySQL corriendo para testear lógica de negocio.
    (`SUBSANADA`/`RECHAZADA`); no hay job/cron para el plazo vencido de
    RN-11 (se expone `ActaObservacion.plazo_vencido` calculado, mismo
    patrón que RN-12).
-4. **Almacén** (`ingreso_almacen`, `kardex_movimiento`/`bin_card_movimiento`
-   insert-only RN-06, `stock_almacen_producto`, `transferencia_almacen` RN-18,
-   `ajuste_inventario`/`merma`/`devolucion`/`inventario_fisico`)
+4. ~~**Almacén**~~ ✅ implementado (`ingreso_almacen`, `kardex_movimiento`/
+   `bin_card_movimiento` insert-only RN-06, `stock_almacen_producto`,
+   `transferencia_almacen` RN-18, `ajuste_inventario`/`merma`/`devolucion`/
+   `inventario_fisico`). Todas las escrituras de stock pasan por un único
+   helper (`crud/stock.py::registrar_movimiento`) que mantiene
+   `kardex_movimiento` y `stock_almacen_producto` en sincronía (saldo
+   corrido + costo promedio ponderado) y bloquea stock físico negativo.
+   `bin_card_movimiento` solo se escribe al ingresar (única tabla del
+   módulo con columna de ubicación en el esquema). **Primer módulo con
+   RN-20 implementado de verdad** (`deps.py::verificar_acceso_almacen`,
+   para cuando `almacen_id` viene del body en vez de un path param) —
+   `ALMACENERO` es `acceso_todos_almacenes=False`. Deuda técnica anotada:
+   `pedidos_semanales.py` (rol `NUTRICION`) e Inspección (rol
+   `INSPECTOR`) siguen sin ese chequeo pese a operar sobre recursos
+   ligados a un almacén — no se tocó esos archivos ya probados, RN-20 se
+   implementó recién aquí porque es donde primero importaba de verdad.
 5. **Módulo 4 — Cocina/Consumo** (`solicitud_cocina`, `nota_salida` — RN-07/17,
    comparar consumo real vs. teórico usando `dosificacion_detalle` ya calculado)
 6. **Módulo 5 — Conformidad/Pagos** (`penalidad`, `informe_conformidad_pago`)

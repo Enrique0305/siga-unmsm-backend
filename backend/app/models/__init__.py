@@ -8,6 +8,7 @@ from app.models.organizacion import (  # noqa: F401
     CentroConsumo,
     Rol,
     Sede,
+    UbicacionInterna,
     UsuarioAlmacenAcceso,
 )
 from app.models.usuario import Usuario  # noqa: F401
@@ -48,4 +49,18 @@ from app.models.inspeccion import (  # noqa: F401
     Inspeccion,
     InspeccionDetalle,
     Subsanacion,
+)
+from app.models.inventario import (  # noqa: F401
+    AjusteInventario,
+    BinCardMovimiento,
+    Devolucion,
+    IngresoAlmacen,
+    IngresoAlmacenDetalle,
+    InventarioFisico,
+    InventarioFisicoDetalle,
+    KardexMovimiento,
+    Merma,
+    StockAlmacenProducto,
+    TransferenciaAlmacen,
+    TransferenciaAlmacenDetalle,
 )

@@ -82,4 +82,16 @@ def require_almacen_access(almacen_id_param: str = "almacen_id"):
     return _checker
 
 
+def verificar_acceso_almacen(current: CurrentUser, almacen_id: int) -> None:
+    """RN-20 para endpoints donde almacen_id viene del body o se deriva de
+    otra entidad (guía, transferencia, etc.), no de un path param — por eso
+    no puede resolverse con `require_almacen_access()`. Mismo mensaje/
+    status que esa dependency factory, para consistencia."""
+    if not current.tiene_acceso_almacen(almacen_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes autorización para operar sobre este almacén (RN-20)",
+        )
+
+
 DbSession = Depends(get_db)

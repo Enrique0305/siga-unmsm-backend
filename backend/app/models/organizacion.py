@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -54,3 +54,23 @@ class CentroConsumo(Base):
     almacen_id: Mapped[int] = mapped_column(ForeignKey("almacen.almacen_id"))
     nombre: Mapped[str] = mapped_column(String(150))
     poblacion_referencia: Mapped[int | None]
+
+
+class UbicacionInterna(Base):
+    __tablename__ = "ubicacion_interna"
+    __table_args__ = (
+        UniqueConstraint("almacen_id", "zona", "estante", "nivel", "contenedor_camara", name="uq_ubicacion_interna"),
+    )
+
+    ubicacion_id: Mapped[int] = mapped_column(primary_key=True)
+    almacen_id: Mapped[int] = mapped_column(ForeignKey("almacen.almacen_id"))
+    zona: Mapped[str] = mapped_column(String(60))
+    estante: Mapped[str | None] = mapped_column(String(60))
+    nivel: Mapped[str | None] = mapped_column(String(60))
+    contenedor_camara: Mapped[str | None] = mapped_column(String(60))
+    es_cadena_frio: Mapped[bool] = mapped_column(Boolean, default=False)
+    # codigo_ubicacion es GENERATED ALWAYS AS (CONCAT_WS(...)) STORED en MySQL;
+    # no se mapea aquí (SQLite no tiene CONCAT_WS y ninguna lógica de negocio
+    # lo necesita) — mismo criterio que alimento_version.vigente_key.
+
+    almacen: Mapped["Almacen"] = relationship(lazy="joined")
