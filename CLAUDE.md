@@ -23,8 +23,8 @@ o registrado).
 
 - **Backend:** FastAPI + SQLAlchemy 2.0 (async, `aiomysql`) + Pydantic v2 + JWT (access/refresh) + Alembic
 - **Base de datos:** MySQL 8.0 (el esquema completo, ~60 tablas, ya existe — ver sección 5)
-- **Frontend:** Next.js — **aún no iniciado**, es el siguiente gran bloque después de terminar el backend
-- **Infraestructura:** Docker Compose (`mysql` + `api` + placeholder `frontend` comentado en `docker-compose.yml`)
+- **Frontend:** Next.js 16 (App Router, TypeScript, Tailwind v4) — Sesión 1 completa (auth + shell + Dashboard), ver `frontend/README.md` y sección 12
+- **Infraestructura:** Docker Compose (`mysql` + `api` + `frontend`, los 3 servicios activos en `docker-compose.yml`)
 
 ## 3. Patrón de código establecido (seguir siempre este orden)
 
@@ -338,7 +338,11 @@ MySQL corriendo para testear lógica de negocio.
    en ningún módulo, no se agregó; "próximos a vencer" informa la
    cantidad *ingresada* del lote, no la que *queda* en stock hoy (el
    esquema no trackea stock por lote, solo por almacén+producto).
-8. **Frontend Next.js** — recién después de cerrar el backend completo
+8. ~~**Frontend Next.js — Sesión 1**~~ ✅ implementado (scaffold, tema,
+   cliente API, auth, shell, Dashboard). Ver sección 12 para arquitectura,
+   decisiones y gotchas descubiertos. Pendiente: las ~23 pantallas
+   restantes del catálogo de la sección 3 del diseño, mismo patrón (Server
+   Component de lista + Client Component de formulario con hooks `orval`).
 
 ## 11. Cómo correr el proyecto
 
@@ -347,3 +351,54 @@ Ver `README.md` en la raíz — resumen: `cp .env.example .env` → cambiar
 `docker compose exec api alembic stamp head && docker compose exec api
 python -m app.seed`. Docs interactivas en
 `http://localhost:8000/api/v1/docs`.
+
+## 12. Frontend (Next.js) — arquitectura y gotchas
+
+Detalle completo en `frontend/README.md`. Resumen de las decisiones que no
+son obvias leyendo el código:
+
+1. **Next.js 16 renombró `middleware.ts` → `proxy.ts`** (función
+   `middleware()` → `proxy()`, mismo `config.matcher`, misma API de
+   cookies). El scaffold generado por `create-next-app` trae un
+   `AGENTS.md`/`CLAUDE.md` propios (regenerados por `next dev`, no
+   editarlos a mano) que avisan de leer `node_modules/next/dist/docs/`
+   antes de asumir nada del training data — ya se hizo para este cambio y
+   para el punto 2. El archivo del proyecto es `frontend/proxy.ts`.
+2. **Tailwind v4 no usa `tailwind.config.ts`.** El tema (paleta
+   institucional, fuente) se define con `@theme` directo en
+   `app/globals.css` — variables `--color-primary`, `--color-warning`,
+   etc. generan automáticamente las clases `bg-primary`, `text-warning`,
+   etc.
+3. **Patrón BFF de dos caminos**, según el tipo de componente (no hay un
+   único cliente API):
+   - Server Components (páginas de solo lectura) → `lib/api/server-fetch.ts`
+     lee la cookie httpOnly con `next/headers` y llama a FastAPI directo.
+   - Client Components (hooks `orval`/TanStack Query) → no pueden leer la
+     cookie, pasan por `app/api/backend/[...path]/route.ts`, que reenvía
+     con el Bearer y hace un refresh automático si FastAPI responde 401.
+   - El nombre `app/api/backend/...` (no `.../proxy/...`) es deliberado:
+     evita chocar con el término "Proxy" que Next.js 16 ya usa para el
+     punto 1.
+4. **orval con `client: 'react-query'` + `httpClient: 'fetch'` genera
+   respuestas como `{ data, status, headers }`**, no el objeto plano —
+   el mutator (`lib/api/mutator.ts`) tiene que devolver esa forma
+   (`as T`), no solo el JSON parseado. Se confirmó corriendo
+   `npm run generate:api` contra el backend real y leyendo el archivo
+   generado, no asumiendo la firma de memoria.
+5. **JWT decodificado sin verificar firma** en `lib/auth/session.ts` (con
+   `jose`/`decodeJwt`, no `jwtVerify`) — solo para pintar rol/sidebar en
+   el servidor. Es intencional: evita compartir `SECRET_KEY` entre los
+   `.env` de frontend y backend; la autorización real la sigue haciendo
+   FastAPI en cada request.
+6. **Gotcha de entorno (no de código): `passlib==1.7.4` + `bcrypt>=4.0`
+   rompe `hash_password`/`verify_password`** (`ValueError: password cannot
+   be longer than 72 bytes...` — falla en la auto-detección interna de
+   passlib, no en la contraseña real del usuario). `requirements.txt` no
+   fija versión de `bcrypt`, así que un `pip install` fresco (o una
+   imagen Docker reconstruida) puede traer una versión incompatible. Se
+   detectó al preparar una base SQLite descartable para probar el login
+   del frontend sin Docker/MySQL disponibles en el entorno; el workaround
+   usado fue instalar `bcrypt<4.0` en el venv de prueba. **No se tocó
+   `requirements.txt`** (fuera de alcance de la sesión de frontend) — si
+   vuelve a aparecer, la solución permanente es fijar `bcrypt<4.0` (o
+   migrar a `bcrypt` sin `passlib`) en `backend/requirements.txt`.

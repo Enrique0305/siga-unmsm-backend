@@ -1,0 +1,26 @@
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import "./globals.css";
+
+import { QueryProvider } from "@/components/providers/QueryProvider";
+
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin"],
+});
+
+export const metadata: Metadata = {
+  title: "SIGA-UNMSM",
+  description:
+    "Sistema Integral de Gestión de Almacén y Abastecimiento Alimentario — UNMSM",
+};
+
+export default function RootLayout({ children }: LayoutProps<"/">) {
+  return (
+    <html lang="es" className={`${inter.variable} h-full antialiased`}>
+      <body className="min-h-full flex flex-col bg-background text-foreground font-sans">
+        <QueryProvider>{children}</QueryProvider>
+      </body>
+    </html>
+  );
+}

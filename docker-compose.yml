@@ -42,27 +42,24 @@ services:
       - ./backend/app:/code/app          # hot-reload en desarrollo
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
-  # ------------------------------------------------------------------
-  # Frontend (Next.js): placeholder para la siguiente etapa del proyecto.
-  # Se deja definido para que `docker compose up` levante los 3 servicios
-  # de una vez apenas se agregue el código en /frontend.
-  # ------------------------------------------------------------------
-  # frontend:
-  #   build:
-  #     context: ./frontend
-  #     dockerfile: Dockerfile
-  #   container_name: siga_frontend
-  #   restart: unless-stopped
-  #   environment:
-  #     NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
-  #   ports:
-  #     - "3000:3000"
-  #   depends_on:
-  #     - api
-  #   volumes:
-  #     - ./frontend:/app
-  #     - /app/node_modules
-  #     - /app/.next
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: siga_frontend
+    restart: unless-stopped
+    environment:
+      # Server-to-server (route handlers / Server Components) — nunca
+      # visible al navegador, por eso NO lleva el prefijo NEXT_PUBLIC_.
+      API_URL: http://api:8000/api/v1
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
 
 volumes:
   mysql_data:
