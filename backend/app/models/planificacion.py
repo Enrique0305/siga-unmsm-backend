@@ -4,6 +4,7 @@ from sqlalchemy import Date, DateTime, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+from app.models.catalogos import Producto
 from app.models.receta import Receta
 
 
@@ -61,3 +62,35 @@ class Plato(Base):
 
     menu_dia: Mapped["MenuDia"] = relationship(back_populates="platos")
     receta: Mapped["Receta"] = relationship(lazy="joined")
+
+
+class RequerimientoAnual(Base):
+    __tablename__ = "requerimiento_anual"
+
+    requerimiento_anual_id: Mapped[int] = mapped_column(primary_key=True)
+    racion_anual_id: Mapped[int] = mapped_column(ForeignKey("racion_anual.racion_anual_id"))
+    version: Mapped[int] = mapped_column(default=1)
+    estado: Mapped[str] = mapped_column(String(20), default="BORRADOR")
+    # BORRADOR, EN_REVISION, APROBADO, VIGENTE — ver crud/requerimiento.py
+    presupuesto_referencial_total: Mapped[float | None]
+    aprobado_por_id: Mapped[int | None] = mapped_column(ForeignKey("usuario.usuario_id"))
+    aprobado_en: Mapped[datetime | None] = mapped_column(DateTime)
+    creado_en: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    detalle: Mapped[list["RequerimientoAnualDetalle"]] = relationship(
+        back_populates="requerimiento_anual", cascade="all, delete-orphan"
+    )
+
+
+class RequerimientoAnualDetalle(Base):
+    __tablename__ = "requerimiento_anual_detalle"
+
+    requerimiento_detalle_id: Mapped[int] = mapped_column(primary_key=True)
+    requerimiento_anual_id: Mapped[int] = mapped_column(ForeignKey("requerimiento_anual.requerimiento_anual_id"))
+    producto_id: Mapped[int] = mapped_column(ForeignKey("producto.producto_id"))
+    cantidad_estimada_anual: Mapped[float]
+    unidad_id: Mapped[int] = mapped_column(ForeignKey("unidad_medida.unidad_id"))
+    presupuesto_referencial: Mapped[float | None]
+
+    requerimiento_anual: Mapped["RequerimientoAnual"] = relationship(back_populates="detalle")
+    producto: Mapped["Producto"] = relationship(lazy="joined")

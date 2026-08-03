@@ -15,6 +15,7 @@ from app.models.catalogos import (  # noqa: F401
     Alimento,
     AlimentoVersion,
     CategoriaAlimento,
+    Producto,
     UnidadMedida,
 )
 from app.models.receta import Receta, RecetaIngrediente, RecetaValorNutricional  # noqa: F401
@@ -23,5 +24,13 @@ from app.models.planificacion import (  # noqa: F401
     MenuQuincenal,
     Plato,
     RacionAnual,
+    RequerimientoAnual,
+    RequerimientoAnualDetalle,
 )
 from app.models.dosificacion import DosificacionDetalle  # noqa: F401
+from app.models.contratos import (  # noqa: F401
+    Contrato,
+    CronogramaEntrega,
+    ProductoContratado,
+    Proveedor,
+)

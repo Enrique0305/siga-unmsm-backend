@@ -132,6 +132,17 @@ bootstrapping inicial de un módulo nuevo.
    `crud/receta.py::recalcular_nutricion` — el fix está comentado ahí
    mismo, usarlo como referencia si aparece un bug similar.
 
+3. **Columnas `GENERATED ALWAYS ... STORED` (ej. `producto_contratado.
+   tope_monetario`) se mapean con `mapped_column(Computed("expr",
+   persisted=True))`**, nunca como columna normal (el ORM no debe
+   escribirlas). Tras el `INSERT`, SQLAlchemy deja ese atributo
+   "expirado" — leerlo sin refrescar antes dispara I/O implícito y revienta
+   en async igual que el gotcha #1. Hacer `await db.flush()` seguido de
+   `await db.refresh(obj)` antes de devolver el objeto (ver
+   `crud/contrato.py::agregar_producto_contratado`); si el modelo tiene
+   además una relación `lazy="joined"`, el mismo `refresh()` sin
+   `attribute_names` la recarga de paso.
+
 ## 8. Reglas de negocio (RN-01 a RN-28) — resumen de referencia
 
 El detalle completo de cada regla, con su flujo, está en
@@ -177,6 +188,9 @@ o recetas) · RN-27 (pedido semanal separado por almacén+comedor) · RN-28
 | Recetas (RN-22/23/25/26) | `models/receta.py`, `crud/receta.py`, `api/v1/recetas.py` | CRUD + `/estado` + `/versiones` + `/recalcular-nutricion` | ✅ `tests/test_recetas.py` |
 | Planificación/Menús | `models/planificacion.py`, `crud/planificacion.py` | raciones-anuales, menus-quincenales, dias, platos | ✅ |
 | Dosificación/BOM automático (RN-24/27/28) | `models/dosificacion.py`, `crud/dosificacion.py` | `POST/GET /planificacion/dias/{id}/dosificacion` | ✅ |
+| Producto (catálogo logístico, prerrequisito Módulo 2) | `models/catalogos.py::Producto`, `crud/producto.py` | `GET/POST/PATCH /productos` | ✅ `tests/test_contratos.py` |
+| Requerimiento anual (prerrequisito Módulo 2, CRUD manual sin auto-consolidación BOM) | `models/planificacion.py::RequerimientoAnual(Detalle)`, `crud/requerimiento.py` | CRUD + `/estado` (BORRADOR→EN_REVISION→APROBADO→VIGENTE) | ✅ `tests/test_contratos.py` |
+| Módulo 2 — Proveedores/Contratos (RN-12/19) | `models/contratos.py`, `crud/proveedor.py`, `crud/contrato.py` | `/proveedores`, `/contratos` + `/estado` + `/cronograma` + `/productos` | ✅ `tests/test_contratos.py` |
 
 **Seed inicial:** `app/seed.py` crea los 8 roles, las 3 sedes, los 4
 almacenes reales y el usuario admin (`docker compose exec api python -m
@@ -189,11 +203,21 @@ MySQL corriendo para testear lógica de negocio.
 
 ## 10. Próximos pasos (en este orden, por dependencias)
 
-1. **Módulo 2 — Contratos/Proveedores** (`proveedor`, `contrato`,
-   `cronograma_entrega`, `producto_contratado` — saldo físico/monetario
-   GLOBAL, alertas RN-12 de vencimiento/saldo bajo)
+1. ~~**Módulo 2 — Contratos/Proveedores**~~ ✅ implementado (`proveedor`,
+   `contrato`, `cronograma_entrega`, `producto_contratado` — saldo
+   físico/monetario GLOBAL, alertas RN-12 calculadas en tiempo de consulta
+   vía `Contrato.alerta_vigencia` / `ProductoContratado.alerta_saldo`, no
+   hay job/cron todavía). De paso se construyeron dos prerrequisitos que no
+   existían: `Producto` (catálogo logístico) y `RequerimientoAnual` (CRUD
+   manual — la consolidación automática BOM → requerimiento anual sigue
+   pendiente, ver punto 2).
 2. **Módulo 3 — Compras** (`orden_compra` + `orden_compra_distribucion`
-   multialmacén con RN-01/RN-15, `pedido_semanal`, `guia_remision`)
+   multialmacén con RN-01/RN-15, `pedido_semanal`, `guia_remision`). RN-01
+   debe descontar `saldo_fisico`/`saldo_monetario` de `producto_contratado`
+   al emitir cada OC (ver `crud/contrato.py::agregar_producto_contratado`,
+   que solo los inicializa). Considerar también cerrar la consolidación
+   automática de `bom_consolidado` → `requerimiento_anual_detalle` como
+   mejora del Módulo 1, si se necesita antes de escalar el uso real.
 3. **Inspección/Actas** (`inspeccion`, `acta_observacion`, `subsanacion` — RN-04/05)
 4. **Almacén** (`ingreso_almacen`, `kardex_movimiento`/`bin_card_movimiento`
    insert-only RN-06, `stock_almacen_producto`, `transferencia_almacen` RN-18,

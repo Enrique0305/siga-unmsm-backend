@@ -82,3 +82,22 @@ class AlimentoVersion(Base):
     # no se mapea aquí porque el ORM nunca debe escribirla, solo la base de datos la calcula.
 
     alimento: Mapped["Alimento"] = relationship(back_populates="versiones")
+
+
+class Producto(Base):
+    """Catálogo logístico (compras/almacén) — distinto de Alimento (catálogo nutricional)."""
+
+    __tablename__ = "producto"
+
+    producto_id: Mapped[int] = mapped_column(primary_key=True)
+    codigo: Mapped[str] = mapped_column(String(30), unique=True)
+    nombre: Mapped[str] = mapped_column(String(200))
+    categoria: Mapped[str | None] = mapped_column(String(80))
+    unidad_id: Mapped[int] = mapped_column(ForeignKey("unidad_medida.unidad_id"))
+    alimento_id: Mapped[int | None] = mapped_column(ForeignKey("alimento.alimento_id"))
+    perecible: Mapped[bool] = mapped_column(Boolean, default=False)
+    dias_vida_util: Mapped[int | None]
+    stock_minimo_referencial: Mapped[float | None]
+    estado: Mapped[str] = mapped_column(String(20), default="ACTIVO")
+
+    unidad: Mapped["UnidadMedida"] = relationship(lazy="joined")
