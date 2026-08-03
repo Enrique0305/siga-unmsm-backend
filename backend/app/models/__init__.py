@@ -75,3 +75,4 @@ from app.models.pagos import (  # noqa: F401
     InformeConformidadPago,
     Penalidad,
 )
+from app.models.auditoria import AuditoriaLog  # noqa: F401

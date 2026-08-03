@@ -153,8 +153,10 @@ bootstrapping inicial de un módulo nuevo.
    sección 9), hay que declarar
    `mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True)`
    — en MySQL sigue siendo `BIGINT`, en SQLite se crea como `INTEGER` y
-   autoincrementa. Ver `models/inventario.py` (constante `_BigIntPK`) como
-   referencia.
+   autoincrementa. Está centralizado como `BigIntPK` en `db/base.py`
+   (se usó dos veces — `models/inventario.py` y `models/auditoria.py` —
+   así que se promovió ahí en vez de duplicarlo una tercera vez);
+   importar de ahí para cualquier PK `BIGINT` nueva.
 
 ## 8. Reglas de negocio (RN-01 a RN-28) — resumen de referencia
 
@@ -209,6 +211,8 @@ o recetas) · RN-27 (pedido semanal separado por almacén+comedor) · RN-28
 | Almacén — Ingresos/Stock/Kardex/Ajustes/Transferencias (RN-04/06/18/20) | `models/organizacion.py::UbicacionInterna`, `models/inventario.py`, `crud/stock.py` (helper central `registrar_movimiento`) | `/ubicaciones`, `/ingresos-almacen`, `/stock-almacen`, `/kardex`, `/ajustes-inventario`, `/mermas`, `/devoluciones`, `/inventarios-fisicos` + `/cerrar`, `/transferencias` + `/recepcion` | ✅ `tests/test_almacen.py` |
 | Módulo 4 — Cocina/Consumo (RN-07/17/20/21, activa `stock_comprometido`) | `models/cocina.py`, `crud/solicitud_cocina.py`, `crud/nota_salida.py` | `/solicitudes-cocina` + `/estado`, `/notas-salida` | ✅ `tests/test_cocina.py` |
 | Módulo 5 — Conformidad y Pagos (RN-05/10, cierra `orden_compra`) | `models/pagos.py`, `crud/informe_conformidad.py`, `crud/penalidad.py` | `PATCH /ordenes-compra/{id}/estado` (`CERRADO`), `/penalidades`, `/informes-conformidad-pago` + `/estado` | ✅ `tests/test_pagos.py` |
+| Auditoría automática (RN-08, evento global, todos los modelos) | `models/auditoria.py`, `core/audit.py` (evento `after_flush` + `ContextVar`), `api/middleware.py` | `GET /auditoria?entidad=&entidad_id=` | ✅ `tests/test_auditoria.py` |
+| Reportes transversales | `crud/reportes.py` | `GET /reportes/valorizacion-inventario`, `/comparativo-consumo`, `/alertas` | ✅ `tests/test_reportes.py` |
 
 **Seed inicial:** `app/seed.py` crea los 8 roles, las 3 sedes, los 4
 almacenes reales y el usuario admin (`docker compose exec api python -m
@@ -310,9 +314,30 @@ MySQL corriendo para testear lógica de negocio.
    cron para RN-10/11 (cierre mensual masivo / plazo vencido), mismo
    hueco ya documentado para RN-12: cada OC se cierra una por una vía
    el endpoint.
-7. **Reportes y auditoría** (usar `auditoria_log`, ya existe la tabla —
-   falta decidir si se llena vía middleware/evento SQLAlchemy o
-   explícitamente en cada servicio)
+7. ~~**Reportes y auditoría**~~ ✅ implementado. `auditoria_log` se
+   llena con un **evento SQLAlchemy global** (`core/audit.py`,
+   `@event.listens_for(Session, "after_flush")` sobre la clase base
+   `Session`) — no se tocó ninguno de los ~30 `crud/*.py` existentes; el
+   actor (`usuario_id`) llega vía un `contextvars.ContextVar` que
+   `api/middleware.py::AuditContextMiddleware` llena por request
+   decodificando el JWT (reusa `core/security.py::decode_token`, sin
+   reimplementar nada) — el evento en sí no tiene forma de ver la
+   request de FastAPI. Tablas con PK compuesta (`stock_almacen_producto`,
+   `usuario_almacen_acceso`, etc.) no se auditan (son tablas de estado,
+   no "documentos" de RN-08); `seed.py` y las siembras directas de los
+   tests tampoco (sin request no hay `ContextVar`, y sin actor no hay a
+   quién auditar). `detalle_json` queda `None` por ahora — enriquecerlo
+   con diffs de columnas es una mejora futura, no bloqueante.
+   Reportes: `GET /reportes/valorizacion-inventario`,
+   `/comparativo-consumo` (BOM de Módulo 1A vs. comprado de Módulo 3 vs.
+   recibido de Almacén vs. despachado de Módulo 4 — el que más tablas
+   cruza) y `/alertas` (stock bajo, próximos a vencer, observaciones sin
+   resolver). Límites documentados en el propio código: `/alertas` usa
+   `producto.stock_minimo_referencial` como único umbral —
+   `almacen_producto_parametro` (override por almacén) no tiene modelo
+   en ningún módulo, no se agregó; "próximos a vencer" informa la
+   cantidad *ingresada* del lote, no la que *queda* en stock hoy (el
+   esquema no trackea stock por lote, solo por almacén+producto).
 8. **Frontend Next.js** — recién después de cerrar el backend completo
 
 ## 11. Cómo correr el proyecto

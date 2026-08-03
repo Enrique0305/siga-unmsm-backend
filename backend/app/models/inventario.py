@@ -1,19 +1,13 @@
 from datetime import date, datetime
 
-from sqlalchemy import BigInteger, Computed, Date, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import BigInteger, Computed, Date, DateTime, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base
+from app.db.base import Base, BigIntPK
 from app.models.catalogos import Producto
 from app.models.compras import GuiaRemision
 from app.models.inspeccion import InspeccionDetalle
 from app.models.organizacion import Almacen, UbicacionInterna
-
-# SQLite solo alías el rowid (autoincrement) en columnas declaradas exactamente
-# INTEGER PRIMARY KEY; con BIGINT se queda NULL y viola NOT NULL en los tests
-# (create_all() solo corre contra SQLite, nunca contra MySQL — ver db/base.py).
-# En MySQL este tipo sigue siendo BIGINT AUTO_INCREMENT como pide el esquema.
-_BigIntPK = BigInteger().with_variant(Integer, "sqlite")
 
 
 class IngresoAlmacen(Base):
@@ -78,7 +72,7 @@ class KardexMovimiento(Base):
 
     __tablename__ = "kardex_movimiento"
 
-    kardex_id: Mapped[int] = mapped_column(_BigIntPK, primary_key=True)
+    kardex_id: Mapped[int] = mapped_column(BigIntPK, primary_key=True)
     almacen_id: Mapped[int] = mapped_column(ForeignKey("almacen.almacen_id"))
     producto_id: Mapped[int] = mapped_column(ForeignKey("producto.producto_id"))
     tipo_movimiento: Mapped[str] = mapped_column(String(30))
@@ -103,7 +97,7 @@ class BinCardMovimiento(Base):
 
     __tablename__ = "bin_card_movimiento"
 
-    bin_card_id: Mapped[int] = mapped_column(_BigIntPK, primary_key=True)
+    bin_card_id: Mapped[int] = mapped_column(BigIntPK, primary_key=True)
     almacen_id: Mapped[int] = mapped_column(ForeignKey("almacen.almacen_id"))
     producto_id: Mapped[int] = mapped_column(ForeignKey("producto.producto_id"))
     ubicacion_id: Mapped[int] = mapped_column(ForeignKey("ubicacion_interna.ubicacion_id"))

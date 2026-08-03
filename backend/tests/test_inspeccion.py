@@ -22,6 +22,7 @@ async def _crear_guia_completa(
     numero_guia: str,
     cantidad: float = 40,
     semana_offset_dias: int = 0,
+    fecha_vencimiento: date | None = None,
 ) -> dict:
     """Emite una OC en un solo almacén, su pedido semanal, y una guía con
     entrega completa. Devuelve ids útiles para inspeccionar. `cantidad`
@@ -64,6 +65,10 @@ async def _crear_guia_completa(
     )
     assert pedido_resp.status_code == 201, pedido_resp.text
 
+    detalle_guia = {"orden_compra_detalle_id": orden_compra_detalle_id, "cantidad_entregada": cantidad}
+    if fecha_vencimiento is not None:
+        detalle_guia["fecha_vencimiento"] = fecha_vencimiento.isoformat()
+
     guia_resp = await client.post(
         "/api/v1/guias-remision",
         headers=headers,
@@ -74,7 +79,7 @@ async def _crear_guia_completa(
             "pedido_semanal_id": pedido_resp.json()["pedido_semanal_id"],
             "almacen_destino_id": 1,
             "fecha_entrega": date.today().isoformat(),
-            "detalle": [{"orden_compra_detalle_id": orden_compra_detalle_id, "cantidad_entregada": cantidad}],
+            "detalle": [detalle_guia],
         },
     )
     assert guia_resp.status_code == 201, guia_resp.text

@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+import app.core.audit  # noqa: F401  registra el evento de auditoría (RN-08)
+from app.api.middleware import AuditContextMiddleware
 from app.api.v1.router import api_router
 from app.core.config import settings
 
@@ -16,6 +18,7 @@ app = FastAPI(
     docs_url=f"{settings.API_V1_PREFIX}/docs",
 )
 
+app.add_middleware(AuditContextMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,

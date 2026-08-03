@@ -4,6 +4,7 @@ from app.api.v1 import (
     actas_observacion,
     alimentos,
     almacenes,
+    auditoria,
     auth,
     catalogos,
     contratos,
@@ -21,6 +22,7 @@ from app.api.v1 import (
     productos,
     proveedores,
     recetas,
+    reportes,
     requerimientos,
     solicitudes_cocina,
     stock,
@@ -57,7 +59,8 @@ api_router.include_router(solicitudes_cocina.router)
 api_router.include_router(notas_salida.router)
 api_router.include_router(penalidades.router)
 api_router.include_router(informes_conformidad.router)
+api_router.include_router(auditoria.router)
+api_router.include_router(reportes.router)
 
-# Backend de módulos funcionales completo (Módulos 1 a 5). Quedan
-# pendientes: Reportes/auditoría (transversal, sección 10 punto 7 de
-# CLAUDE.md) y el Frontend Next.js.
+# Backend completo (Módulos 1 a 5 + Reportes/auditoría transversal,
+# sección 10 de CLAUDE.md). Queda pendiente el Frontend Next.js.
