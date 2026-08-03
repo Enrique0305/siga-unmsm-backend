@@ -192,6 +192,7 @@ o recetas) · RN-27 (pedido semanal separado por almacén+comedor) · RN-28
 | Requerimiento anual (prerrequisito Módulo 2, CRUD manual sin auto-consolidación BOM) | `models/planificacion.py::RequerimientoAnual(Detalle)`, `crud/requerimiento.py` | CRUD + `/estado` (BORRADOR→EN_REVISION→APROBADO→VIGENTE) | ✅ `tests/test_contratos.py` |
 | Módulo 2 — Proveedores/Contratos (RN-12/19) | `models/contratos.py`, `crud/proveedor.py`, `crud/contrato.py` | `/proveedores`, `/contratos` + `/estado` + `/cronograma` + `/productos` | ✅ `tests/test_contratos.py` |
 | Módulo 3 — Compras (RN-01/02/03/09/13/15/16/19) | `models/compras.py` (incl. `AutorizacionExcedente`), `crud/orden_compra.py`, `crud/pedido_semanal.py`, `crud/guia_remision.py` | `/ordenes-compra` + `/estado` + `/detalle/{id}/autorizaciones-excedente`, `/pedidos-semanales`, `/guias-remision` + `/detalle` | ✅ `tests/test_compras.py` |
+| Inspección/Actas (RN-04/05/11, dueño de `guia_remision.estado`) | `models/inspeccion.py`, `crud/inspeccion.py`, `crud/acta_observacion.py` | `/inspecciones`, `/actas-observacion` + `/desde-inspeccion-detalle/{id}` + `/subsanaciones` + `/subsanaciones/{id}/reinspeccion` | ✅ `tests/test_inspeccion.py` |
 
 **Seed inicial:** `app/seed.py` crea los 8 roles, las 3 sedes, los 4
 almacenes reales y el usuario admin (`docker compose exec api python -m
@@ -226,17 +227,23 @@ MySQL corriendo para testear lógica de negocio.
    incompleta de `01_schema.sql`; la tabla sí existía (sección 8, "8.
    AUTORIZACIONES DE EXCEDENTE"). Lección: al escanear el esquema para un
    módulo nuevo, revisarlo completo (`grep -n "CREATE TABLE"` sobre todo
-   el archivo), no solo el bloque con el nombre del módulo. Límites
-   conocidos que sí siguen pendientes: `guia_remision.estado` se queda en
-   `PENDIENTE` (las transiciones PARCIAL/CONFORME/OBSERVADO/SUBSANADO/
-   CERRADO/PENALIZADO las decide Inspección, punto 3); el rol `PROVEEDOR`
-   no está acotado a sus propios documentos porque `Usuario` no tiene FK a
-   `Proveedor`. Sigue pendiente cerrar la consolidación automática de
-   `bom_consolidado` → `requerimiento_anual_detalle` como mejora del
-   Módulo 1, si se necesita antes de escalar el uso real.
-3. **Inspección/Actas** (`inspeccion`, `acta_observacion`, `subsanacion` —
-   RN-04/05/10/11 — dueño de las transiciones de estado de `guia_remision`
-   que dejó pendientes el Módulo 3)
+   el archivo), no solo el bloque con el nombre del módulo. Límite que
+   sigue pendiente: el rol `PROVEEDOR` no está acotado a sus propios
+   documentos porque `Usuario` no tiene FK a `Proveedor`. Sigue pendiente
+   cerrar la consolidación automática de `bom_consolidado` →
+   `requerimiento_anual_detalle` como mejora del Módulo 1, si se necesita
+   antes de escalar el uso real.
+3. ~~**Inspección/Actas**~~ ✅ implementado (`inspeccion`,
+   `inspeccion_detalle`, `acta_observacion`, `subsanacion`). Ahora sí es
+   dueño de `guia_remision.estado`, que avanza `PENDIENTE → PARCIAL →
+   CONFORME/OBSERVADO → SUBSANADO` (`crud/inspeccion.py::crear`,
+   `crud/acta_observacion.py::registrar_reinspeccion`). Límite de
+   alcance documentado en el propio código: `CERRADO`/`PENALIZADO`
+   (guía) y el cierre de OC + `Penalidad` (RN-10/11) quedan para Módulo
+   5, que es quien decide eso leyendo `acta_observacion.estado`
+   (`SUBSANADA`/`RECHAZADA`); no hay job/cron para el plazo vencido de
+   RN-11 (se expone `ActaObservacion.plazo_vencido` calculado, mismo
+   patrón que RN-12).
 4. **Almacén** (`ingreso_almacen`, `kardex_movimiento`/`bin_card_movimiento`
    insert-only RN-06, `stock_almacen_producto`, `transferencia_almacen` RN-18,
    `ajuste_inventario`/`merma`/`devolucion`/`inventario_fisico`)

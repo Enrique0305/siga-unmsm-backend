@@ -43,3 +43,9 @@ from app.models.compras import (  # noqa: F401
     OrdenCompraDistribucion,
     PedidoSemanal,
 )
+from app.models.inspeccion import (  # noqa: F401
+    ActaObservacion,
+    Inspeccion,
+    InspeccionDetalle,
+    Subsanacion,
+)

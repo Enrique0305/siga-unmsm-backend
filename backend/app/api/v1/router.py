@@ -1,12 +1,14 @@
 from fastapi import APIRouter
 
 from app.api.v1 import (
+    actas_observacion,
     alimentos,
     almacenes,
     auth,
     catalogos,
     contratos,
     guias_remision,
+    inspecciones,
     ordenes_compra,
     pedidos_semanales,
     planificacion,
@@ -33,8 +35,10 @@ api_router.include_router(contratos.router)
 api_router.include_router(ordenes_compra.router)
 api_router.include_router(pedidos_semanales.router)
 api_router.include_router(guias_remision.router)
+api_router.include_router(inspecciones.router)
+api_router.include_router(actas_observacion.router)
 
-# A medida que se implementen los siguientes módulos del diseño
-# (Inspección/Actas, Kardex/Bin Card, Cocina/Consumo, Conformidad/Pago),
-# sus routers se agregan aquí, cada uno en su propio archivo
-# app/api/v1/<modulo>.py, siguiendo el mismo patrón de esta carpeta.
+# A medida que se implementen los siguientes módulos del diseño (Kardex/Bin
+# Card, Cocina/Consumo, Conformidad/Pago), sus routers se agregan aquí, cada
+# uno en su propio archivo app/api/v1/<modulo>.py, siguiendo el mismo
+# patrón de esta carpeta.
