@@ -1,0 +1,35 @@
+# --- Python / backend ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+*.db
+
+# --- Entorno / secretos ---
+.env
+.env.*
+!.env.example
+
+# --- Node / frontend (cuando exista) ---
+node_modules/
+.next/
+out/
+build/
+dist/
+
+# --- Docker / SO ---
+*.log
+.DS_Store
+Thumbs.db
+
+# --- Editor ---
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# --- Claude Code (config local, no compartir) ---
+.claude/settings.local.json

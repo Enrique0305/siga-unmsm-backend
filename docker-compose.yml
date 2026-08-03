@@ -1,0 +1,68 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: siga_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-siga_unmsm}
+      MYSQL_USER: ${MYSQL_USER:-siga_app}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-siga_app_pass}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      # Se ejecutan en orden alfabético SOLO la primera vez que el volumen
+      # está vacío: crean el esquema completo (tablas), cargan el catálogo
+      # nutricional y aplican el parche del trigger. Así, cualquier
+      # desarrollador nuevo levanta la base completa con un solo comando.
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-rootpass}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: siga_api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: mysql+aiomysql://${MYSQL_USER:-siga_app}:${MYSQL_PASSWORD:-siga_app_pass}@mysql:3306/${MYSQL_DATABASE:-siga_unmsm}
+    ports:
+      - "8000:8000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - ./backend/app:/code/app          # hot-reload en desarrollo
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # ------------------------------------------------------------------
+  # Frontend (Next.js): placeholder para la siguiente etapa del proyecto.
+  # Se deja definido para que `docker compose up` levante los 3 servicios
+  # de una vez apenas se agregue el código en /frontend.
+  # ------------------------------------------------------------------
+  # frontend:
+  #   build:
+  #     context: ./frontend
+  #     dockerfile: Dockerfile
+  #   container_name: siga_frontend
+  #   restart: unless-stopped
+  #   environment:
+  #     NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+  #   ports:
+  #     - "3000:3000"
+  #   depends_on:
+  #     - api
+  #   volumes:
+  #     - ./frontend:/app
+  #     - /app/node_modules
+  #     - /app/.next
+
+volumes:
+  mysql_data:

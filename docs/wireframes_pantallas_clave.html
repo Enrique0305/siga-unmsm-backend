@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>SIGA-UNMSM · Wireframes</title>
+<style>
+  :root{
+    --azul:#003DA5; --azul-2:#0057B8; --azul-suave:#E8EEFB;
+    --blanco:#FFFFFF; --gris-fondo:#F2F4F7; --gris-borde:#D9DEE6; --gris-texto:#6B7280; --gris-osc:#1F2937;
+    --verde:#1E8E3E; --verde-bg:#E6F4EA;
+    --amarillo:#B8860B; --amarillo-bg:#FEF3D6;
+    --rojo:#D93025; --rojo-bg:#FCE8E6;
+    --font: 'Segoe UI', 'Inter', Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:var(--font);background:var(--gris-fondo);color:var(--gris-osc);}
+  header.topbar{background:var(--azul);color:#fff;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;}
+  header.topbar .brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.3px;}
+  header.topbar .crest{width:30px;height:30px;border-radius:50%;background:#fff;color:var(--azul);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;}
+  header.topbar .user{font-size:13px;opacity:.9;}
+  nav.tabs{display:flex;gap:2px;background:var(--azul-2);padding:0 20px;overflow-x:auto;}
+  nav.tabs button{background:transparent;border:none;color:#dbe7fb;padding:12px 16px;font-size:13px;cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;font-family:var(--font);}
+  nav.tabs button.active{color:#fff;border-bottom:3px solid #fff;font-weight:600;}
+  main{padding:22px;max-width:1280px;margin:0 auto;}
+  .screen{display:none;}
+  .screen.active{display:block;}
+  h1{font-size:19px;margin:0 0 4px;color:var(--azul);}
+  .sub{color:var(--gris-texto);font-size:13px;margin-bottom:18px;}
+  .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;}
+  .kpi{background:#fff;border:1px solid var(--gris-borde);border-left:4px solid var(--azul);border-radius:6px;padding:12px 14px;}
+  .kpi.warn{border-left-color:var(--amarillo);}
+  .kpi.bad{border-left-color:var(--rojo);}
+  .kpi.good{border-left-color:var(--verde);}
+  .kpi .lbl{font-size:11px;color:var(--gris-texto);text-transform:uppercase;letter-spacing:.4px;}
+  .kpi .val{font-size:24px;font-weight:700;margin-top:4px;}
+  .kpi .delta{font-size:11px;margin-top:2px;color:var(--gris-texto);}
+  .card{background:#fff;border:1px solid var(--gris-borde);border-radius:6px;padding:16px;margin-bottom:16px;}
+  .card h2{font-size:14px;margin:0 0 12px;color:var(--gris-osc);}
+  .toolbar{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;}
+  .toolbar input, .toolbar select{border:1px solid var(--gris-borde);border-radius:5px;padding:7px 10px;font-size:12.5px;font-family:var(--font);color:var(--gris-osc);}
+  .toolbar .spacer{flex:1;}
+  .btn{border:none;border-radius:5px;padding:8px 14px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:var(--font);}
+  .btn-primary{background:var(--azul);color:#fff;}
+  .btn-outline{background:#fff;border:1px solid var(--gris-borde);color:var(--gris-osc);}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  th{background:var(--gris-fondo);text-align:left;padding:9px 10px;color:var(--gris-texto);font-weight:600;border-bottom:1px solid var(--gris-borde);white-space:nowrap;}
+  td{padding:9px 10px;border-bottom:1px solid var(--gris-fondo);white-space:nowrap;}
+  tr:hover td{background:var(--azul-suave);}
+  .badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;}
+  .b-ok{background:var(--verde-bg);color:var(--verde);}
+  .b-warn{background:var(--amarillo-bg);color:var(--amarillo);}
+  .b-bad{background:var(--rojo-bg);color:var(--rojo);}
+  .b-neutral{background:var(--gris-fondo);color:var(--gris-texto);}
+  .progress{width:90px;height:7px;border-radius:4px;background:var(--gris-fondo);overflow:hidden;display:inline-block;vertical-align:middle;margin-right:6px;}
+  .progress > div{height:100%;}
+  .two-col{display:grid;grid-template-columns:1.3fr 1fr;gap:16px;}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .field label{display:block;font-size:11.5px;color:var(--gris-texto);margin-bottom:4px;}
+  .field input, .field select{width:100%;border:1px solid var(--gris-borde);border-radius:5px;padding:8px 10px;font-size:12.5px;font-family:var(--font);}
+  .alert{border-radius:6px;padding:10px 12px;font-size:12.5px;margin-bottom:12px;display:flex;gap:8px;align-items:center;}
+  .alert-bad{background:var(--rojo-bg);color:var(--rojo);border:1px solid #f3b6b1;}
+  .alert-ok{background:var(--verde-bg);color:var(--verde);border:1px solid #b9e2c3;}
+  .trace{display:flex;align-items:center;flex-wrap:wrap;gap:0;font-size:11px;color:var(--gris-texto);margin:10px 0 18px;}
+  .trace span{background:#fff;border:1px solid var(--gris-borde);padding:5px 10px;border-radius:4px;}
+  .trace .arrow{color:var(--gris-borde);padding:0 4px;}
+  .trace .now{background:var(--azul);color:#fff;border-color:var(--azul);font-weight:700;}
+  .footer-note{font-size:11px;color:var(--gris-texto);margin-top:6px;}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><div class="crest">SM</div> SIGA-UNMSM · Gestión de Almacén y Abastecimiento</div>
+  <div class="user">Rosa Quispe · Logística/Abastecimiento ▾</div>
+</header>
+
+<nav class="tabs" id="tabs">
+  <button class="active" data-t="dash">Dashboard</button>
+  <button data-t="nutricion">Catálogo nutricional</button>
+  <button data-t="receta">Recetas</button>
+  <button data-t="contrato">Contratos y productos</button>
+  <button data-t="oc">Orden de compra</button>
+  <button data-t="inspeccion">Inspección y actas</button>
+  <button data-t="kardex">Kardex / Bin card</button>
+  <button data-t="almacenes">Almacenes y transferencias</button>
+  <button data-t="pago">Conformidad y pago</button>
+</nav>
+
+<main>
+
+<!-- DASHBOARD -->
+<section class="screen active" id="dash">
+  <h1>Dashboard ejecutivo</h1>
+  <div class="sub">Vista general del ciclo de abastecimiento · Julio 2026</div>
+
+  <div class="toolbar" style="margin-bottom:16px">
+    <select><option>Todos los almacenes (consolidado)</option><option>ALM-CU · Ciudad Universitaria</option><option>ALM-CAN · Cangallo</option><option>ALM-VET · Veterinaria</option><option>ALM-ADM · Adm./Docentes</option></select>
+    <select><option>Todas las sedes</option></select>
+    <select><option>Todos los comedores</option></select>
+    <div class="spacer"></div>
+    <span class="footer-note">Mostrando: vista consolidada de 4 almacenes</span>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi bad"><div class="lbl">Stock crítico</div><div class="val">7 productos</div><div class="delta">bajo el mínimo</div></div>
+    <div class="kpi warn"><div class="lbl">Contratos por vencer</div><div class="val">3</div><div class="delta">≤ 30 días</div></div>
+    <div class="kpi warn"><div class="lbl">OC pendientes</div><div class="val">12</div><div class="delta">de recepción</div></div>
+    <div class="kpi bad"><div class="lbl">Entregas observadas</div><div class="val">5</div><div class="delta">actas abiertas</div></div>
+    <div class="kpi bad"><div class="lbl">Pagos retenidos</div><div class="val">S/ 18,420</div><div class="delta">4 informes</div></div>
+    <div class="kpi good"><div class="lbl">Consumo mensual</div><div class="val">S/ 214,300</div><div class="delta">▲ 3% vs. junio</div></div>
+    <div class="kpi"><div class="lbl">Valorización inventario</div><div class="val">S/ 96,150</div><div class="delta">al cierre de hoy</div></div>
+    <div class="kpi good"><div class="lbl">Raciones servidas hoy</div><div class="val">4,280</div><div class="delta">98.4% de lo programado</div></div>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <h2>Contratos próximos a vencer / saldo crítico</h2>
+      <table>
+        <tr><th>Contrato</th><th>Proveedor</th><th>Vence</th><th>Saldo físico</th><th>Saldo monetario</th><th>Estado</th></tr>
+        <tr><td>CT-2026-014</td><td>Distribuidora Andina SAC</td><td>12 ago 2026</td><td><span class="progress"><div style="width:12%;background:var(--rojo)"></div></span>12%</td><td>S/ 4,120</td><td><span class="badge b-bad">Crítico</span></td></tr>
+        <tr><td>CT-2026-009</td><td>Agroindustrias del Sur EIRL</td><td>20 ago 2026</td><td><span class="progress"><div style="width:34%;background:var(--amarillo)"></div></span>34%</td><td>S/ 11,900</td><td><span class="badge b-warn">Por vencer</span></td></tr>
+        <tr><td>CT-2026-022</td><td>Lácteos San Isidro SAC</td><td>02 sep 2026</td><td><span class="progress"><div style="width:58%;background:var(--verde)"></div></span>58%</td><td>S/ 22,300</td><td><span class="badge b-ok">Estable</span></td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <h2>Entregas con observación abierta</h2>
+      <table>
+        <tr><th>Acta</th><th>Proveedor</th><th>Producto</th><th>Plazo</th></tr>
+        <tr><td>AO-0231</td><td>Distribuidora Andina SAC</td><td>Arroz superior</td><td><span class="badge b-bad">Vence hoy</span></td></tr>
+        <tr><td>AO-0229</td><td>Molinos San Marcos SA</td><td>Aceite vegetal</td><td><span class="badge b-warn">3 días</span></td></tr>
+        <tr><td>AO-0225</td><td>Agroindustrias del Sur</td><td>Papa blanca</td><td><span class="badge b-warn">5 días</span></td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- CATÁLOGO NUTRICIONAL -->
+<section class="screen" id="nutricion">
+  <h1>Catálogo nutricional</h1>
+  <div class="sub">Base: Tabla Peruana de Composición de Alimentos · ampliable por el Nutricionista autorizado</div>
+
+  <div class="toolbar">
+    <select><option>Todas las categorías</option><option>Cereales</option><option>Menestras</option><option>Lácteos</option></select>
+    <select><option>Todos los tipos</option><option>Base tabla</option><option>Preparado importado</option><option>Preparación institucional</option></select>
+    <input placeholder="Buscar alimento...">
+    <div class="spacer"></div>
+    <button class="btn btn-outline">Exportar Excel</button>
+    <button class="btn btn-primary">+ Nuevo alimento</button>
+  </div>
+
+  <div class="card">
+    <h2>Arroz superior crudo — ARR-0001 · v2 vigente</h2>
+    <table>
+      <tr><th>Energía</th><th>Proteínas</th><th>Grasa total</th><th>Carbohidratos</th><th>Fibra</th><th>Calcio</th><th>Hierro</th><th>Sodio</th><th>Vit. C</th></tr>
+      <tr><td>365 kcal</td><td>7.1 g</td><td>0.6 g</td><td>79.9 g</td><td>1.3 g</td><td>10 mg</td><td>1.2 mg</td><td>5 mg</td><td>0 mg</td></tr>
+    </table>
+    <div class="footer-note">Valores por 100 g · Fuente: Tabla Peruana de Composición de Alimentos, 2017 · Importado: 15/01/2026</div>
+    <div class="toolbar" style="margin-top:10px"><span class="badge b-neutral">Ver historial: v1 (15/01/2026) → v2 (03/06/2026, corregido por Nutricionista)</span><div class="spacer"></div><button class="btn btn-outline">Corregir valores (crea v3)</button></div>
+  </div>
+</section>
+
+<!-- RECETAS -->
+<section class="screen" id="receta">
+  <h1>Recetas / preparaciones institucionales</h1>
+  <div class="sub">Arroz con menestras — REC-0042 · Segundo · v3 · <span class="badge b-warn">En revisión</span></div>
+
+  <div class="two-col">
+    <div class="card">
+      <h2>Datos generales</h2>
+      <div class="form-grid">
+        <div class="field"><label>Categoría</label><input value="Segundo"></div>
+        <div class="field"><label>N° raciones base</label><input value="100"></div>
+        <div class="field"><label>Tamaño de porción</label><input value="250 g"></div>
+        <div class="field"><label>Rendimiento</label><input value="92%"></div>
+        <div class="field"><label>Merma estimada</label><input value="4%"></div>
+        <div class="field"><label>Estado</label><input value="En revisión"></div>
+      </div>
+      <h2 style="margin-top:16px">Ingredientes</h2>
+      <table>
+        <tr><th>Alimento</th><th>Cant. bruta</th><th>Cant. neta</th><th>Unidad</th><th>Merma</th></tr>
+        <tr><td>Arroz superior crudo</td><td>18 g</td><td>17.3 g</td><td>KG</td><td>4%</td></tr>
+        <tr><td>Menestras variadas</td><td>10 g</td><td>9.6 g</td><td>KG</td><td>4%</td></tr>
+        <tr><td>Aceite vegetal</td><td>1.5 g</td><td>1.5 g</td><td>L</td><td>0%</td></tr>
+      </table>
+      <div class="toolbar" style="margin-top:10px"><button class="btn btn-outline">+ Agregar ingrediente</button><div class="spacer"></div><span class="footer-note">📎 foto_plato.jpg · ficha_tecnica.pdf</span></div>
+    </div>
+
+    <div class="card">
+      <h2>Aporte nutricional (calculado automáticamente)</h2>
+      <table>
+        <tr><th></th><th>Total receta<br>(100 raciones)</th><th>Por ración</th></tr>
+        <tr><td>Energía</td><td>32,400 kcal</td><td><b>324 kcal</b></td></tr>
+        <tr><td>Proteínas</td><td>1,180 g</td><td><b>11.8 g</b></td></tr>
+        <tr><td>Grasa total</td><td>410 g</td><td><b>4.1 g</b></td></tr>
+        <tr><td>Carbohidratos</td><td>5,820 g</td><td><b>58.2 g</b></td></tr>
+        <tr><td>Fibra dietaria</td><td>320 g</td><td><b>3.2 g</b></td></tr>
+        <tr><td>Sodio</td><td>18,600 mg</td><td><b>186 mg</b></td></tr>
+      </table>
+      <div class="footer-note" style="margin-top:8px">Recalculado automáticamente al modificar cualquier ingrediente o cantidad.</div>
+      <div class="alert alert-ok" style="margin-top:10px">✓ Receta válida: 3 ingredientes, rendimiento 92% > 0 (regla RN-23).</div>
+      <div class="toolbar"><div class="spacer"></div><button class="btn btn-outline">Guardar borrador</button><button class="btn btn-primary">Enviar a aprobación</button></div>
+    </div>
+  </div>
+  <div class="footer-note">Esta versión (v3) es independiente de la v2 aprobada usada en el menú de junio; al aprobarse, los menús futuros usarán v3 — los ya programados conservan v2 (RN-25).</div>
+</section>
+
+<!-- CONTRATOS -->
+<section class="screen" id="contrato">
+  <h1>Proveedores y contratos</h1>
+  <div class="sub">Productos contratados · precios, topes y saldos</div>
+
+  <div class="card">
+    <h2>Contrato CT-2026-014 · Distribuidora Andina SAC</h2>
+    <div class="toolbar">
+      <span class="badge b-warn">Vigente – por vencer</span>
+      <span class="footer-note">Vigencia: 01 feb 2026 – 12 ago 2026 · Presupuesto total: S/ 84,000</span>
+      <div class="spacer"></div>
+      <button class="btn btn-outline">Exportar PDF</button>
+      <button class="btn btn-primary">Nueva orden de compra</button>
+    </div>
+    <table>
+      <tr><th>Producto</th><th>Unidad</th><th>Precio unit.</th><th>Cant. contratada</th><th>Saldo físico</th><th>Saldo monetario</th><th>Estado</th></tr>
+      <tr><td>Arroz superior</td><td>KG</td><td>S/ 3.80</td><td>8,000</td><td><span class="progress"><div style="width:12%;background:var(--rojo)"></div></span>960</td><td>S/ 3,648</td><td><span class="badge b-bad">Crítico</span></td></tr>
+      <tr><td>Aceite vegetal</td><td>L</td><td>S/ 9.20</td><td>1,200</td><td><span class="progress"><div style="width:45%;background:var(--amarillo)"></div></span>540</td><td>S/ 4,968</td><td><span class="badge b-warn">Alerta</span></td></tr>
+      <tr><td>Menestras variadas</td><td>KG</td><td>S/ 5.10</td><td>2,500</td><td><span class="progress"><div style="width:71%;background:var(--verde)"></div></span>1,775</td><td>S/ 9,052</td><td><span class="badge b-ok">Estable</span></td></tr>
+    </table>
+  </div>
+
+  <div class="alert alert-bad">⚠ El producto <b>Arroz superior</b> alcanzó el 88% de consumo del tope contractual. No podrán emitirse nuevas órdenes de compra por más de 960 KG sin ampliación de contrato.</div>
+</section>
+
+<!-- ORDEN DE COMPRA -->
+<section class="screen" id="oc">
+  <h1>Orden de compra mensual</h1>
+  <div class="trace">
+    <span>Requerimiento anual</span><span class="arrow">→</span>
+    <span>Contrato CT-2026-014</span><span class="arrow">→</span>
+    <span class="now">Orden de compra</span><span class="arrow">→</span>
+    <span>Pedido semanal</span><span class="arrow">→</span>
+    <span>Guía</span><span class="arrow">→</span>
+    <span>Inspección</span><span class="arrow">→</span>
+    <span>Ingreso</span>
+  </div>
+
+  <div class="card">
+    <h2>Nueva orden de compra — OC-2026-08-014</h2>
+    <div class="form-grid">
+      <div class="field"><label>Contrato</label><select><option>CT-2026-014 · Distribuidora Andina SAC</option></select></div>
+      <div class="field"><label>Periodo (mes)</label><input value="Agosto 2026"></div>
+    </div>
+    <table style="margin-top:14px">
+      <tr><th>Producto</th><th>Precio contrato</th><th>Saldo disponible</th><th>Cantidad a solicitar</th><th>Total</th><th>Validación</th></tr>
+      <tr><td>Arroz superior</td><td>S/ 3.80</td><td>960 KG</td><td>700 KG</td><td>S/ 2,660</td><td><span class="badge b-ok">OK</span></td></tr>
+      <tr><td>Aceite vegetal</td><td>S/ 9.20</td><td>540 L</td><td>600 L</td><td>S/ 5,520</td><td><span class="badge b-bad">Excede saldo</span></td></tr>
+    </table>
+    <div class="alert alert-bad" style="margin-top:12px">⚠ La cantidad solicitada de <b>Aceite vegetal</b> (600 L) excede el saldo contractual disponible (540 L). No se puede emitir la orden hasta corregir la cantidad o ampliar el contrato. <i>(Regla RN-01)</i></div>
+    <div class="toolbar"><div class="spacer"></div><button class="btn btn-outline">Guardar borrador</button><button class="btn btn-primary">Emitir orden de compra</button></div>
+  </div>
+</section>
+
+<!-- INSPECCIÓN -->
+<section class="screen" id="inspeccion">
+  <h1>Inspección de calidad y cantidad</h1>
+  <div class="sub">Guía GR-00981 · Distribuidora Andina SAC · OC-2026-08-014</div>
+
+  <div class="card">
+    <h2>Detalle de inspección por línea</h2>
+    <table>
+      <tr><th>Producto</th><th>Cant. entregada</th><th>Cant. conforme</th><th>Cant. observada</th><th>Resultado</th></tr>
+      <tr><td>Arroz superior</td><td>700 KG</td><td>700</td><td>0</td><td><span class="badge b-ok">Conforme</span></td></tr>
+      <tr><td>Menestras variadas</td><td>300 KG</td><td>260</td><td>40</td><td><span class="badge b-bad">Observado</span></td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Acta de observación · AO-0233</h2>
+    <div class="form-grid">
+      <div class="field"><label>Producto</label><input value="Menestras variadas"></div>
+      <div class="field"><label>Lote</label><input value="LT-2026-0745"></div>
+      <div class="field"><label>Cantidad observada</label><input value="40 KG"></div>
+      <div class="field"><label>Motivo</label><input value="Empaque deteriorado / humedad"></div>
+      <div class="field"><label>Responsable</label><input value="Inspector: Carlos Effio"></div>
+      <div class="field"><label>Plazo de subsanación</label><input value="29 jul 2026"></div>
+    </div>
+    <div class="toolbar" style="margin-top:12px"><span class="footer-note">📎 evidencia_fotografica_AO-0233.jpg</span><div class="spacer"></div><button class="btn btn-primary">Registrar acta y notificar proveedor</button></div>
+  </div>
+</section>
+
+<!-- KARDEX -->
+<section class="screen" id="kardex">
+  <h1>Kardex valorizado y bin card</h1>
+  <div class="sub">Almacén: ALM-CU · Ciudad Universitaria · Producto: Arroz superior · Unidad: KG</div>
+
+  <div class="two-col">
+    <div class="card">
+      <h2>Kardex valorizado (movimientos financieros)</h2>
+      <table>
+        <tr><th>Fecha</th><th>Doc.</th><th>Tipo</th><th>Cant.</th><th>Costo unit.</th><th>Saldo cant.</th><th>Saldo valorizado</th></tr>
+        <tr><td>21/07</td><td>ING-1188</td><td><span class="badge b-ok">Ingreso</span></td><td>+700</td><td>S/ 3.80</td><td>1,340</td><td>S/ 5,092</td></tr>
+        <tr><td>21/07</td><td>NS-2245</td><td><span class="badge b-bad">Salida</span></td><td>-180</td><td>S/ 3.80</td><td>1,160</td><td>S/ 4,408</td></tr>
+        <tr><td>22/07</td><td>NS-2251</td><td><span class="badge b-bad">Salida</span></td><td>-165</td><td>S/ 3.80</td><td>995</td><td>S/ 3,781</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <h2>Bin card físico — Ubicación A-03</h2>
+      <table>
+        <tr><th>Fecha</th><th>Doc.</th><th>Tipo</th><th>Cant.</th><th>Saldo físico</th></tr>
+        <tr><td>21/07</td><td>ING-1188</td><td><span class="badge b-ok">Ingreso</span></td><td>+700</td><td>1,340</td></tr>
+        <tr><td>21/07</td><td>NS-2245</td><td><span class="badge b-bad">Salida</span></td><td>-180</td><td>1,160</td></tr>
+        <tr><td>22/07</td><td>NS-2251</td><td><span class="badge b-bad">Salida</span></td><td>-165</td><td>995</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="footer-note">Registro insertar-solo (insert-only): cada corrección se registra como un nuevo movimiento de ajuste con referencia al original, según regla RN-06.</div>
+</section>
+
+<!-- ALMACENES Y TRANSFERENCIAS -->
+<section class="screen" id="almacenes">
+  <h1>Almacenes y transferencias</h1>
+  <div class="sub">Stock local por almacén · control independiente de kardex, bin card y consumo</div>
+
+  <div class="card">
+    <h2>Stock por almacén — Arroz superior (KG)</h2>
+    <table>
+      <tr><th>Almacén</th><th>Stock físico</th><th>Comprometido</th><th>Disponible</th><th>Valorizado</th><th>Estado</th></tr>
+      <tr><td>ALM-CU · Ciudad Universitaria</td><td>995</td><td>180</td><td>815</td><td>S/ 3,781</td><td><span class="badge b-ok">Normal</span></td></tr>
+      <tr><td>ALM-CAN · Cangallo</td><td>120</td><td>90</td><td>30</td><td><span class="badge b-bad">bajo mínimo</span></td><td><span class="badge b-bad">Crítico</span></td></tr>
+      <tr><td>ALM-VET · Veterinaria</td><td>340</td><td>60</td><td>280</td><td>S/ 1,292</td><td><span class="badge b-ok">Normal</span></td></tr>
+      <tr><td>ALM-ADM · Adm./Docentes</td><td>210</td><td>40</td><td>170</td><td>S/ 798</td><td><span class="badge b-warn">Vigilar</span></td></tr>
+      <tr style="font-weight:700"><td>Total consolidado</td><td>1,665</td><td>370</td><td>1,295</td><td>S/ 5,871+</td><td>—</td></tr>
+    </table>
+    <div class="alert alert-bad" style="margin-top:10px">⚠ ALM-CAN tiene stock disponible (30 KG) por debajo del mínimo. Considere generar una transferencia desde ALM-CU (815 KG disponibles).</div>
+  </div>
+
+  <div class="card">
+    <h2>Nueva transferencia entre almacenes — TR-2026-0042</h2>
+    <div class="form-grid">
+      <div class="field"><label>Almacén origen</label><select><option>ALM-CU · Ciudad Universitaria</option></select></div>
+      <div class="field"><label>Almacén destino</label><select><option>ALM-CAN · Cangallo</option></select></div>
+      <div class="field"><label>Producto</label><input value="Arroz superior"></div>
+      <div class="field"><label>Cantidad a enviar</label><input value="200 KG"></div>
+    </div>
+    <div class="toolbar" style="margin-top:12px"><div class="spacer"></div><button class="btn btn-primary">Emitir nota de transferencia de salida</button></div>
+  </div>
+
+  <div class="card">
+    <h2>Bandeja de transferencias</h2>
+    <table>
+      <tr><th>N° transferencia</th><th>Origen</th><th>Destino</th><th>Producto</th><th>Enviado</th><th>Recibido</th><th>Estado</th></tr>
+      <tr><td>TR-2026-0041</td><td>ALM-CU</td><td>ALM-VET</td><td>Aceite vegetal</td><td>80 L</td><td>—</td><td><span class="badge b-warn">En tránsito</span></td></tr>
+      <tr><td>TR-2026-0039</td><td>ALM-ADM</td><td>ALM-CU</td><td>Menestras variadas</td><td>50 KG</td><td>50 KG</td><td><span class="badge b-ok">Recibida conforme</span></td></tr>
+      <tr><td>TR-2026-0036</td><td>ALM-CU</td><td>ALM-CAN</td><td>Arroz superior</td><td>150 KG</td><td>142 KG</td><td><span class="badge b-bad">Con diferencia</span></td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- PAGO -->
+<section class="screen" id="pago">
+  <h1>Conformidad, retenciones e informe de pago</h1>
+  <div class="sub">Orden de compra OC-2026-08-014 · Distribuidora Andina SAC</div>
+
+  <div class="card">
+    <h2>Checklist de actas antes de generar informe</h2>
+    <table>
+      <tr><th>Acta</th><th>Producto</th><th>Estado</th><th>Monto afectado</th></tr>
+      <tr><td>AO-0231</td><td>Arroz superior</td><td><span class="badge b-ok">Levantada / subsanada</span></td><td>S/ 0.00</td></tr>
+      <tr><td>AO-0233</td><td>Menestras variadas</td><td><span class="badge b-bad">Abierta</span></td><td>S/ 204.00 retenido</td></tr>
+    </table>
+    <div class="alert alert-bad">⚠ Existe 1 acta abierta. El monto correspondiente a "Menestras variadas" quedará retenido; el resto de la orden puede pagarse con normalidad (regla RN-05).</div>
+  </div>
+
+  <div class="card">
+    <h2>Informe de conformidad para pago — INF-2026-0197</h2>
+    <div class="form-grid">
+      <div class="field"><label>Monto conforme total</label><input value="S/ 6,304.00"></div>
+      <div class="field"><label>Monto retenido</label><input value="S/ 204.00"></div>
+      <div class="field"><label>Penalidad aplicada</label><input value="S/ 0.00"></div>
+      <div class="field"><label>Estado</label><input value="Pendiente de envío"></div>
+    </div>
+    <div class="toolbar" style="margin-top:12px"><div class="spacer"></div><button class="btn btn-outline">Vista previa PDF</button><button class="btn btn-primary">Derivar a Oficina de Abastecimiento</button></div>
+  </div>
+</section>
+
+</main>
+
+<script>
+document.getElementById('tabs').addEventListener('click', function(e){
+  if(e.target.tagName !== 'BUTTON') return;
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  e.target.classList.add('active');
+  document.getElementById(e.target.dataset.t).classList.add('active');
+});
+</script>
+</body>
+</html>

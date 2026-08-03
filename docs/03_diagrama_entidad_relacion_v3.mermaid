@@ -1,0 +1,81 @@
+erDiagram
+    SEDE ||--o{ ALMACEN : "ubica"
+    ALMACEN ||--o{ UBICACION_INTERNA : "organiza"
+    ALMACEN ||--o{ CENTRO_CONSUMO : "abastece"
+    USUARIO ||--o{ USUARIO_ALMACEN_ACCESO : "autorizado_en"
+    ALMACEN ||--o{ USUARIO_ALMACEN_ACCESO : "concede_acceso"
+
+    PROVEEDOR ||--o{ CONTRATO : "firma"
+    REQUERIMIENTO_ANUAL ||--o{ CONTRATO : "respalda"
+    CONTRATO ||--o{ PRODUCTO_CONTRATADO : "detalla (saldo GLOBAL)"
+    CONTRATO ||--o{ ORDEN_COMPRA : "ampara"
+    ORDEN_COMPRA ||--o{ ORDEN_COMPRA_DETALLE : "detalla"
+    ORDEN_COMPRA_DETALLE ||--o{ ORDEN_COMPRA_DISTRIBUCION : "distribuye_entre_almacenes"
+    ALMACEN ||--o{ ORDEN_COMPRA_DISTRIBUCION : "recibe_cuota"
+
+    ORDEN_COMPRA ||--o{ PEDIDO_SEMANAL : "programa"
+    MENU_QUINCENAL ||--o{ PEDIDO_SEMANAL : "basa_en"
+    ALMACEN ||--o{ PEDIDO_SEMANAL : "asigna"
+
+    PEDIDO_SEMANAL ||--o{ GUIA_REMISION : "recibe"
+    ORDEN_COMPRA ||--o{ GUIA_REMISION : "referencia"
+    ALMACEN ||--o{ GUIA_REMISION : "es_destino_de"
+    GUIA_REMISION ||--o{ GUIA_REMISION_DETALLE : "detalla"
+    ORDEN_COMPRA_DETALLE ||--o{ GUIA_REMISION_DETALLE : "cumple"
+
+    GUIA_REMISION ||--o{ INSPECCION : "es_inspeccionada"
+    INSPECCION ||--o{ INSPECCION_DETALLE : "detalla"
+    INSPECCION_DETALLE ||--o| ACTA_OBSERVACION : "genera_si_disconforme"
+    ACTA_OBSERVACION ||--o{ SUBSANACION : "recibe"
+
+    GUIA_REMISION ||--o{ INGRESO_ALMACEN : "produce"
+    ALMACEN ||--o{ INGRESO_ALMACEN : "recibe (RN-14)"
+    INGRESO_ALMACEN ||--o{ INGRESO_ALMACEN_DETALLE : "detalla"
+    UBICACION_INTERNA ||--o{ INGRESO_ALMACEN_DETALLE : "ubica_en"
+
+    ALMACEN ||--o{ STOCK_ALMACEN_PRODUCTO : "mantiene"
+    PRODUCTO ||--o{ STOCK_ALMACEN_PRODUCTO : "es"
+    ALMACEN ||--o{ KARDEX_MOVIMIENTO : "registra"
+    ALMACEN ||--o{ BIN_CARD_MOVIMIENTO : "registra"
+    ALMACEN ||--o{ AJUSTE_INVENTARIO : "genera"
+    ALMACEN ||--o{ MERMA : "genera"
+    ALMACEN ||--o{ DEVOLUCION : "genera"
+    ALMACEN ||--o{ INVENTARIO_FISICO : "ejecuta"
+    INVENTARIO_FISICO ||--o{ INVENTARIO_FISICO_DETALLE : "detalla"
+    INVENTARIO_FISICO_DETALLE ||--o| AJUSTE_INVENTARIO : "puede_generar"
+
+    ALMACEN ||--o{ TRANSFERENCIA_ALMACEN : "origina"
+    ALMACEN ||--o{ TRANSFERENCIA_ALMACEN : "recibe (destino)"
+    TRANSFERENCIA_ALMACEN ||--o{ TRANSFERENCIA_ALMACEN_DETALLE : "detalla"
+
+    CENTRO_CONSUMO ||--o{ SOLICITUD_COCINA : "solicita"
+    ALMACEN ||--o{ SOLICITUD_COCINA : "atiende (RN-17)"
+    SOLICITUD_COCINA ||--o{ SOLICITUD_COCINA_DETALLE : "detalla"
+    SOLICITUD_COCINA ||--o{ NOTA_SALIDA : "genera"
+    ALMACEN ||--o{ NOTA_SALIDA : "descuenta_de"
+    NOTA_SALIDA ||--o{ NOTA_SALIDA_DETALLE : "detalla"
+
+    ORDEN_COMPRA ||--o{ PENALIDAD : "puede_tener"
+    ORDEN_COMPRA ||--|| INFORME_CONFORMIDAD_PAGO : "cierra_con (GLOBAL)"
+    INFORME_CONFORMIDAD_PAGO ||--o{ INFORME_CONFORMIDAD_DETALLE : "detalla"
+
+    CATEGORIA_ALIMENTO ||--o{ ALIMENTO : "clasifica"
+    ALIMENTO ||--o{ ALIMENTO_VERSION : "historial_nutricional"
+    ALIMENTO ||--o| PRODUCTO : "vincula_con_insumo"
+
+    RECETA ||--o{ RECETA_INGREDIENTE : "compone"
+    ALIMENTO ||--o{ RECETA_INGREDIENTE : "usado_en"
+    RECETA ||--|| RECETA_VALOR_NUTRICIONAL : "calcula"
+    RECETA ||--o{ RECETA : "version_anterior (receta_padre_id)"
+
+    MENU_DIA ||--o{ PLATO : "programa"
+    RECETA ||--o{ PLATO : "es (debe estar VIGENTE)"
+
+    PLATO ||--o{ DOSIFICACION_DETALLE : "explota_en"
+    MENU_DIA ||--o{ DOSIFICACION_DETALLE : "referencia"
+    CENTRO_CONSUMO ||--o{ DOSIFICACION_DETALLE : "para"
+    ALMACEN ||--o{ DOSIFICACION_DETALLE : "requiere_en"
+    ALIMENTO ||--o{ DOSIFICACION_DETALLE : "ingrediente_requerido"
+
+    ALMACEN ||--o{ BOM_CONSOLIDADO : "consolida"
+    PRODUCTO ||--o{ BOM_CONSOLIDADO : "requiere_total"

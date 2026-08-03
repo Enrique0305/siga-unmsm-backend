@@ -1,0 +1,28 @@
+flowchart TD
+    A["Catalogo Nutricional<br/>(Tabla Peruana + institucional)"] --> B["Nutricionista crea Receta<br/>ingredientes + rendimiento + merma"]
+    B --> C{"Receta valida?<br/>>=1 ingrediente, rendimiento > 0"}
+    C -- No --> C1["Bloqueo: completar receta"]
+    C -- Si --> D["Calculo automatico nutricional<br/>total y por racion"]
+    D --> E["Flujo de aprobacion<br/>Borrador -> En revision -> Aprobado -> Vigente"]
+    E --> F["Receta VIGENTE disponible para menus"]
+
+    F --> G["Nutricion arma Menu Quincenal<br/>selecciona recetas VIGENTES"]
+    G --> H["Define raciones por dia, comedor y almacen"]
+    H --> I["Calculo de Dosificacion Detalle<br/>por receta x dia x comedor x almacen"]
+    I --> J["cantidad = raciones x porcion/rendimiento x cant.bruta x (1+merma)"]
+    J --> K["Explosion BOM consolidada<br/>por semana / quincena / mes / anio, por almacen"]
+
+    K --> L{"Comparar contra Stock disponible,<br/>Stock comprometido y Saldo contractual"}
+    L -- Suficiente --> M["Genera Pedido Semanal Dosificado<br/>por almacen y comedor"]
+    L -- Insuficiente --> N["Alerta a Logistica<br/>(no bloquea planificacion)"]
+    N --> M
+
+    M --> O["Ciclo de compra y recepcion (Modulo 3)"]
+    O --> P["Nota de Salida a Cocina (Modulo 4)"]
+    P --> Q["Consumo Real despachado"]
+    Q --> R["Comparacion: Consumo Real vs Consumo Teorico<br/>diferencias, mermas, sobrantes"]
+
+    style C1 fill:#D93025,color:#fff
+    style N fill:#F2A900,color:#000
+    style F fill:#1E8E3E,color:#fff
+    style M fill:#0057B8,color:#fff

@@ -1,0 +1,24 @@
+flowchart TD
+    A["Orden de Compra emitida"] --> B["Distribucion por almacen<br/>(Sum cantidades = cantidad total OC)"]
+    B --> C1["ALM-CU"]
+    B --> C2["ALM-CAN"]
+    B --> C3["ALM-VET"]
+    B --> C4["ALM-ADM"]
+
+    C1 --> D1["Guia con almacen_destino = ALM-CU"]
+    D1 --> E1["Ingreso solo actualiza<br/>Kardex/BinCard/Stock de ALM-CU"]
+
+    E1 --> F{"ALM-CU tiene excedente,<br/>ALM-VET tiene faltante?"}
+    F -- Si --> G["Nota de Transferencia de Salida<br/>origen: ALM-CU"]
+    G --> H["Stock ALM-CU disminuye<br/>Estado: EN_TRANSITO"]
+    H --> I["Recepcion de Transferencia<br/>en ALM-VET"]
+    I -- Cantidad recibida = enviada --> J["RECIBIDA_CONFORME<br/>Stock ALM-VET aumenta"]
+    I -- Diferencia detectada --> K["RECIBIDA_CON_DIFERENCIA<br/>+ observacion registrada"]
+    K --> J
+
+    F -- No --> L["Sin transferencia necesaria"]
+
+    style E1 fill:#1E8E3E,color:#fff
+    style H fill:#F2A900,color:#000
+    style J fill:#1E8E3E,color:#fff
+    style K fill:#D93025,color:#fff

@@ -1,0 +1,37 @@
+flowchart TD
+    A[Raciones Anuales] --> B[Menu Quincenal]
+    B --> C["Explosion BOM<br/>(calculo automatico de insumos)"]
+    C --> D[Requerimiento Anual Consolidado]
+    D --> E[Contrato con Proveedor]
+    E --> F[Productos Contratados<br/>precio / tope fisico / tope monetario]
+    F --> G{"Validar saldo<br/>contractual"}
+    G -- Insuficiente --> G1[Bloqueo: no se emite OC]
+    G -- Suficiente --> H[Orden de Compra Mensual]
+    H --> I[Pedido Semanal / Dosificado]
+    I --> J[Guia de Remision del Proveedor]
+    J --> K[Inspeccion de Calidad y Cantidad]
+    K -- Conforme --> L[Ingreso Total a Almacen]
+    K -- Disconforme --> M[Acta de Observacion]
+    M --> N[Subsanacion del Proveedor]
+    N -- Aprobada --> L
+    N -- Fuera de plazo / Rechazada --> O[Cierre OC con cantidad menor + Penalidad]
+    L --> P["Kardex Valorizado<br/>+ Bin Card"]
+    P --> Q[Stock Disponible]
+    Q --> R{"Validar stock<br/>para Solicitud Cocina"}
+    R -- Insuficiente --> R1[Bloqueo: no se emite Nota de Salida]
+    R -- Suficiente --> S[Nota de Salida a Cocina]
+    S --> T[Consumo Real vs Teorico]
+    L --> U{"Existen actas<br/>de observacion abiertas?"}
+    O --> U
+    U -- Si --> U1[Retener pago de lineas observadas]
+    U -- No / Levantadas --> V[Informe de Conformidad para Pago]
+    U1 --> V
+    V --> W[Oficina de Abastecimiento]
+    W --> X["Estado: Enviado -> Recibido -> En proceso -> Pagado / Devuelto"]
+
+    style G1 fill:#D93025,color:#fff
+    style R1 fill:#D93025,color:#fff
+    style M fill:#F2A900,color:#000
+    style U1 fill:#D93025,color:#fff
+    style L fill:#1E8E3E,color:#fff
+    style V fill:#0057B8,color:#fff
