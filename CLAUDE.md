@@ -191,6 +191,7 @@ o recetas) · RN-27 (pedido semanal separado por almacén+comedor) · RN-28
 | Producto (catálogo logístico, prerrequisito Módulo 2) | `models/catalogos.py::Producto`, `crud/producto.py` | `GET/POST/PATCH /productos` | ✅ `tests/test_contratos.py` |
 | Requerimiento anual (prerrequisito Módulo 2, CRUD manual sin auto-consolidación BOM) | `models/planificacion.py::RequerimientoAnual(Detalle)`, `crud/requerimiento.py` | CRUD + `/estado` (BORRADOR→EN_REVISION→APROBADO→VIGENTE) | ✅ `tests/test_contratos.py` |
 | Módulo 2 — Proveedores/Contratos (RN-12/19) | `models/contratos.py`, `crud/proveedor.py`, `crud/contrato.py` | `/proveedores`, `/contratos` + `/estado` + `/cronograma` + `/productos` | ✅ `tests/test_contratos.py` |
+| Módulo 3 — Compras (RN-01/02/03/09/13/15/16/19) | `models/compras.py`, `crud/orden_compra.py`, `crud/pedido_semanal.py`, `crud/guia_remision.py` | `/ordenes-compra` + `/estado`, `/pedidos-semanales`, `/guias-remision` + `/detalle` | ✅ `tests/test_compras.py` |
 
 **Seed inicial:** `app/seed.py` crea los 8 roles, las 3 sedes, los 4
 almacenes reales y el usuario admin (`docker compose exec api python -m
@@ -211,14 +212,24 @@ MySQL corriendo para testear lógica de negocio.
    existían: `Producto` (catálogo logístico) y `RequerimientoAnual` (CRUD
    manual — la consolidación automática BOM → requerimiento anual sigue
    pendiente, ver punto 2).
-2. **Módulo 3 — Compras** (`orden_compra` + `orden_compra_distribucion`
-   multialmacén con RN-01/RN-15, `pedido_semanal`, `guia_remision`). RN-01
-   debe descontar `saldo_fisico`/`saldo_monetario` de `producto_contratado`
-   al emitir cada OC (ver `crud/contrato.py::agregar_producto_contratado`,
-   que solo los inicializa). Considerar también cerrar la consolidación
-   automática de `bom_consolidado` → `requerimiento_anual_detalle` como
-   mejora del Módulo 1, si se necesita antes de escalar el uso real.
-3. **Inspección/Actas** (`inspeccion`, `acta_observacion`, `subsanacion` — RN-04/05)
+2. ~~**Módulo 3 — Compras**~~ ✅ implementado (`orden_compra` +
+   `orden_compra_distribucion` multialmacén, `pedido_semanal`,
+   `guia_remision` + `guia_remision_detalle`). El descuento de saldo RN-01
+   que quedó pendiente del Módulo 2 ya se aplica en
+   `crud/orden_compra.py::crear` (reserva al emitir la OC, no al recibir la
+   guía — así lo especifica la sección 4.3 del diseño). Límites conocidos,
+   documentados en el propio código: `guia_remision.estado` se queda en
+   `PENDIENTE` (las transiciones PARCIAL/CONFORME/OBSERVADO/SUBSANADO/
+   CERRADO/PENALIZADO las decide Inspección, punto 3); RN-03 "salvo
+   autorización" no tiene columna en el esquema (bloqueo duro, sin
+   excepción); el rol `PROVEEDOR` no está acotado a sus propios documentos
+   porque `Usuario` no tiene FK a `Proveedor`. Sigue pendiente cerrar la
+   consolidación automática de `bom_consolidado` → `requerimiento_anual_
+   detalle` como mejora del Módulo 1, si se necesita antes de escalar el
+   uso real.
+3. **Inspección/Actas** (`inspeccion`, `acta_observacion`, `subsanacion` —
+   RN-04/05/10/11 — dueño de las transiciones de estado de `guia_remision`
+   que dejó pendientes el Módulo 3)
 4. **Almacén** (`ingreso_almacen`, `kardex_movimiento`/`bin_card_movimiento`
    insert-only RN-06, `stock_almacen_producto`, `transferencia_almacen` RN-18,
    `ajuste_inventario`/`merma`/`devolucion`/`inventario_fisico`)

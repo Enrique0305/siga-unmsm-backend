@@ -34,3 +34,11 @@ from app.models.contratos import (  # noqa: F401
     ProductoContratado,
     Proveedor,
 )
+from app.models.compras import (  # noqa: F401
+    GuiaRemision,
+    GuiaRemisionDetalle,
+    OrdenCompra,
+    OrdenCompraDetalle,
+    OrdenCompraDistribucion,
+    PedidoSemanal,
+)

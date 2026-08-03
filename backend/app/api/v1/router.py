@@ -6,6 +6,9 @@ from app.api.v1 import (
     auth,
     catalogos,
     contratos,
+    guias_remision,
+    ordenes_compra,
+    pedidos_semanales,
     planificacion,
     productos,
     proveedores,
@@ -27,8 +30,11 @@ api_router.include_router(productos.router)
 api_router.include_router(requerimientos.router)
 api_router.include_router(proveedores.router)
 api_router.include_router(contratos.router)
+api_router.include_router(ordenes_compra.router)
+api_router.include_router(pedidos_semanales.router)
+api_router.include_router(guias_remision.router)
 
-# A medida que se implementen los siguientes módulos del diseño (Órdenes de
-# Compra, Inspección/Actas, Kardex/Bin Card, Cocina/Consumo, Conformidad/
-# Pago), sus routers se agregan aquí, cada uno en su propio archivo
+# A medida que se implementen los siguientes módulos del diseño
+# (Inspección/Actas, Kardex/Bin Card, Cocina/Consumo, Conformidad/Pago),
+# sus routers se agregan aquí, cada uno en su propio archivo
 # app/api/v1/<modulo>.py, siguiendo el mismo patrón de esta carpeta.
