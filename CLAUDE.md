@@ -413,6 +413,44 @@ MySQL corriendo para testear lógica de negocio.
      Verificado de punta a punta en el navegador: cadena completa de
      estados de `MenuQuincenal` y `RequerimientoAnual`, cálculo de
      dosificación disparado desde el día de menú real.
+   ~~**Sesión 5 — Módulo 03 Compras**~~ ✅ implementado. A diferencia de
+   las Sesiones 3 y 4, backend 100% completo desde antes (confirmado con
+   un agente de exploración) — sesión puramente de frontend, con los
+   hooks de `orval` ya generados desde la Sesión 1 sin usar hasta ahora.
+   `/compras` (OrdenCompra: list/nuevo/detalle/estado/excedente — form de
+   creación anidado 3 niveles, OC → `detalle[]` → `distribucion[]`;
+   `CambiarEstadoOC` solo expone `ANULADA`/`CERRADO`, nunca `PENALIZADO`
+   porque es un efecto secundario que decide Módulo 5, no una acción de
+   usuario), `/compras/pedidos-semanales` (PedidoSemanal: list/nuevo/
+   detalle de solo lectura — no existe endpoint `/estado` para esta
+   entidad, nunca lo va a haber), `/compras/guias` (GuiaRemision: list/
+   nuevo/detalle + "agregar línea" inline sobre una guía ya creada).
+   Verificado de punta a punta en el navegador contra una base SQLite
+   descartable: OC con una línea distribuida entre 2 almacenes (RN-15) →
+   RN-15 rechazado en cliente antes de tocar el backend (distribución que
+   no suma) → RN-01 rechazado por el backend (cantidad > saldo físico del
+   contrato) → RN-02 verificado estructuralmente (el select de pedido
+   semanal se filtra por `orden_compra_id`, así que un pedido de otra OC
+   ni aparece como opción) → RN-03 rechazado (entrega > saldo) →
+   autorizar excedente → reintentar la guía con esa cantidad (pasa,
+   saldo mostrado como "100 + 50 exced.") → agregar línea extra a una
+   guía ya creada (rechazada correctamente, saldo ya en negativo) →
+   cerrar la OC (`CERRADO`, botones de estado desaparecen). **Bug real
+   encontrado y corregido durante la verificación**:
+   `GuiaRemisionForm.tsx` inicializaba `pedidoSemanalId` en `""` y solo lo
+   poblaba dentro de `handleOrdenCompraChange` — como la OC por defecto
+   ya viene preseleccionada al montar el componente (nadie dispara ese
+   handler en el caso más común, crear la primera guía sin cambiar de
+   OC), el `<select>` mostraba visualmente un pedido semanal válido pero
+   el estado de React seguía vacío, bloqueando el submit con "Se necesita
+   un pedido semanal para esta orden de compra" pese a que sí había uno.
+   Fix: inicializar `pedidoSemanalId` con un lazy initializer que filtra
+   `pedidosSemanales` por la OC por defecto, igual que hace
+   `handleOrdenCompraChange` al cambiar de OC. **Hueco de RN-20 más amplio
+   de lo documentado**: ni `ordenes_compra.py` ni `guias_remision.py`
+   (además de `pedidos_semanales.py`, ya conocido) filtran por almacenes
+   asignados al usuario — no se corrige en esta sesión, fuera de alcance
+   (solo frontend), los selects de almacén muestran todos sin filtrar.
 
 ## 11. Cómo correr el proyecto
 
@@ -487,3 +525,12 @@ son obvias leyendo el código:
    cada camino (Server Component *y* Client Component) al menos una vez
    temprano, no asumir que "ya se probó en la sesión anterior" cubre
    ambos.
+8. **Gotcha de entorno (Windows/Git Bash): `DATABASE_URL=sqlite+aiosqlite:///` con
+   una ruta estilo Git Bash (`/c/Users/...`) falla con `unable to open
+   database file`** — `aiosqlite`/`sqlite3` corren como proceso nativo de
+   Windows y no entienden esa sintaxis de ruta traducida por Git Bash;
+   hace falta una ruta Windows real (`C:/Users/...`, barras hacia adelante
+   está bien, pero con letra de unidad) antes de pasarla al `DATABASE_URL`
+   de la base SQLite descartable de verificación manual. `cygpath -w
+   <ruta-git-bash>` la convierte. Aplica a cualquier sesión futura que
+   arme un backend descartable para probar el frontend en el navegador.
