@@ -489,6 +489,61 @@ MySQL corriendo para testear lógica de negocio.
    de RN-20 que Compras (ni `inspecciones.py` ni `actas_observacion.py`
    filtran por almacenes asignados al usuario) — no se corrige aquí,
    fuera de alcance (solo frontend).
+   ~~**Sesión 7 — Módulo Almacenes** (CRUD, Ubicaciones, Ingresos,
+   Stock/Kardex, Movimientos, Inventarios físicos, Transferencias)~~ ✅
+   implementado. Backend 100% completo desde antes — sesión puramente de
+   frontend, la más grande hasta ahora (8 tabs, 17 rutas). `/almacenes`
+   (Almacén: único CRUD "clásico" del módulo, reutiliza el patrón
+   `mode: "create"|"edit"` de `ProveedorForm` de la Sesión 2;
+   `responsable_id` es el único campo `responsable`/`almacenero` de todo
+   el módulo que es client-supplied — todos los demás se derivan del
+   usuario actual en el backend — resuelto con un select poblado desde
+   `GET /usuarios`, primera vez que ese endpoint se consume en el
+   frontend), `/almacenes/ubicaciones` (solo list+create, sin editar),
+   `/almacenes/ingresos` (RN-04: el formulario de creación elige una
+   **Inspección** como padre, no una guía — cada línea prellena
+   `cantidad_ingresada` con `cantidad_conforme` de esa línea de
+   inspección; igual que Recepción en la Sesión 6, no hay fetch extra
+   para saber qué líneas ya tienen ingreso, el backend rechaza con 422 si
+   una ya fue ingresada), `/almacenes/stock` y `/almacenes/kardex` (solo
+   lectura, ambos denormalizados en el propio `Out` — sin lookups de
+   cliente), `/almacenes/movimientos` (Ajuste/Merma/Devolución: **sin
+   GET/lista/detalle en el backend**, tres formularios sueltos en una
+   sola pantalla, cada uno limpia y muestra un link a Stock filtrado tras
+   el éxito — no hay "detalle" al que navegar), `/almacenes/inventarios`
+   (creación es solo una foto — `stock_sistema` es snapshot server-side,
+   nunca input — y "Cerrar inventario" es quien genera los ajustes
+   automáticos y mueve kardex, botón condicionado a `estado ===
+   "EN_PROCESO"`), `/almacenes/transferencias` (RN-18: el stock sale del
+   origen **al crear**, no al recibir; `TransferenciaRecepcionForm` es
+   **todo-o-nada** — una fila por cada línea ya existente, sin
+   agregar/quitar, se envían todas juntas en una sola llamada porque el
+   backend rechaza recepciones parciales). No se construyó una pantalla
+   de "bin card" — el schema `BinCardMovimientoOut` existe pero **ningún
+   endpoint lo expone**, confirmado con grep sobre todo `app/api/v1/`
+   antes de descartarlo, no solo por el reporte de exploración inicial.
+   **Primer módulo con RN-20 real en escritura** (`verificar_acceso_almacen`,
+   no solo `require_roles`) — verificado con un usuario `ALMACENERO`
+   creado ad-hoc con acceso únicamente a un almacén de prueba, intentando
+   una merma sobre otro almacén → 403 con el mensaje exacto de RN-20;
+   las lecturas (GET) de este módulo, en cambio, **no** filtran por
+   almacenes del usuario en ningún endpoint salvo `GET /almacenes` mismo
+   (confirmado en el código, no solo asumido) — no se corrige, es un
+   límite ya existente del backend, fuera de alcance de una sesión de
+   frontend. Verificado de punta a punta en el navegador contra una base
+   SQLite descartable: almacén → ubicación → ingreso desde una inspección
+   conforme (costo unitario correcto, tomado del contrato) → stock/kardex
+   reflejando el ingreso → merma (-5) y devolución `DESDE_COCINA` (+3) →
+   ajuste que dejaría stock negativo → 422 con el mensaje exacto del
+   backend → transferencia entre 2 almacenes (stock del origen cae
+   inmediatamente al crear, antes de cualquier recepción) → confirmar
+   recepción con una cantidad menor a la enviada → `RECIBIDA_CON_DIFERENCIA`,
+   costo unitario preservado del origen (no se re-promedia en destino) →
+   inventario físico con una diferencia → cerrar → ajuste automático
+   generado + movimiento `INVENTARIO_AJUSTE` en kardex con el saldo
+   correcto → reintentar cerrar el mismo inventario → 422 (verificado por
+   API, ya que el botón de cerrar desaparece correctamente en la UI una
+   vez `CERRADO`, sin ruta de UI para provocar el duplicado).
 
 ## 11. Cómo correr el proyecto
 
