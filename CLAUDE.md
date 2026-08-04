@@ -544,6 +544,51 @@ MySQL corriendo para testear lógica de negocio.
    correcto → reintentar cerrar el mismo inventario → 422 (verificado por
    API, ya que el botón de cerrar desaparece correctamente en la UI una
    vez `CERRADO`, sin ruta de UI para provocar el duplicado).
+   ~~**Sesión 8 — Módulo Cocina y consumo** (Solicitud de cocina, Nota
+   de salida)~~ ✅ implementado. Backend 100% completo desde antes —
+   sesión puramente de frontend, pequeña en contraste con la 7 (2
+   sub-dominios, 2 routers). Primer módulo que activa
+   `stock_comprometido`: `/cocina` (SolicitudCocina: list/nuevo/detalle
+   — `almacen_id` nunca se manda, se deriva de `centro_consumo.
+   almacen_id`; cada línea reserva la cantidad completa contra stock al
+   crear, RN-07; `cantidad_teorica_bom` viene calculada server-side vía
+   el puente `Producto.alimento_id` → `dosificacion_detalle`, el
+   formulario solo la muestra de referencia, nunca la calcula ni la
+   manda; máquina de estados `PENDIENTE → {ANULADA}` únicamente —
+   `DESPACHADA` lo fija `NotaSalida.crear` como efecto secundario, nunca
+   una transición directa), `/cocina/notas-salida` (NotaSalida:
+   list/detalle de solo lectura — **sin pantalla "nueva"**, se crea
+   siempre inline desde el detalle de su solicitud, mismo criterio que
+   "Crear acta" en la Sesión 6 y "Autorizar excedente" en la Sesión 5).
+   `CrearNotaSalidaForm` es **todo-o-nada** como
+   `TransferenciaRecepcionForm` de la Sesión 7 — una fila fija por cada
+   línea de la solicitud, sin agregar/quitar, porque el backend exige
+   cobertura exacta (ni de más ni de menos) en una sola llamada.
+   **Separación de roles real dentro de un mismo ítem de nav**: crear/
+   anular solicitud → `ADMIN, COCINA`; crear nota de salida → `ADMIN,
+   ALMACENERO` (el rol `COCINA` no puede despachar, confirmado en el
+   propio router, no solo inferido del nombre). Prerrequisito real
+   encontrado al planear: no existe un listado plano de `MenuDia` — el
+   wrapper de "nueva solicitud" repite el patrón N+1 ya usado en
+   sesiones previas (lista de menús quincenales + `GET .../{id}/dias`
+   en paralelo, aplanados) para poblar el select de día de menú.
+   Verificado de punta a punta en el navegador contra una base SQLite
+   descartable con la cadena completa hasta dosificación calculada
+   (mismo flujo de `test_cocina.py`: producto con `alimento_id` → ...→
+   ingreso a almacén con stock real → receta VIGENTE → menú/día/plato →
+   dosificación calculada): RN-20 con un usuario `COCINA` sin acceso al
+   almacén (403) → solicitud dentro del disponible (201,
+   `stock_comprometido` sube, `cantidad_teorica_bom` resuelta desde la
+   dosificación) → RN-07 pidiendo más que el disponible restante (422
+   con "RN-07" en el mensaje) → nota de salida con cobertura incompleta
+   (422, verificado por API ya que el form siempre construye la
+   cobertura completa por diseño) → nota de salida con despacho parcial
+   (`cantidad_despachada` menor a la solicitada — `stock_fisico` baja
+   solo lo despachado pero `stock_comprometido` libera el 100% de la
+   reserva, `costo_unitario` y `variacion_pct` calculados correctamente,
+   solicitud pasa a `DESPACHADA`) → no se puede anular una solicitud ya
+   despachada (422) → tercera solicitud anulada sin despachar
+   (`ANULADA`, reserva liberada a 0 sin ningún movimiento de kardex).
 
 ## 11. Cómo correr el proyecto
 
