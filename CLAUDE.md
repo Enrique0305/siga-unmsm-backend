@@ -451,6 +451,44 @@ MySQL corriendo para testear lógica de negocio.
    (además de `pedidos_semanales.py`, ya conocido) filtran por almacenes
    asignados al usuario — no se corrige en esta sesión, fuera de alcance
    (solo frontend), los selects de almacén muestran todos sin filtrar.
+   ~~**Sesión 6 — Módulo "Recepción y calidad" (Inspección/Actas de
+   observación/Subsanación)**~~ ✅ implementado. Backend 100% completo
+   desde antes (confirmado con un agente de exploración) — sesión
+   puramente de frontend, igual que la 5. `/recepcion` (Inspección:
+   list/nuevo/detalle — el formulario de creación anida `detalle[]` por
+   línea de guía, con validación de cliente RN-análoga a que
+   `cantidad_conforme + cantidad_observada` iguale lo entregado;
+   `InspeccionOut` no trae `numero_guia`, así que la lista arma un `Map`
+   de lookup igual que `numeroContrato` en `compras/page.tsx`),
+   `/recepcion/actas` (ActaObservacion: list/detalle — sin pantalla
+   "nueva", las actas solo se crean inline desde una línea de inspección
+   `OBSERVADO` vía `<CrearActaForm />`, mismo patrón que "Autorizar
+   excedente" de la Sesión 5; el detalle muestra `subsanaciones[]`
+   anidadas con `<AgregarSubsanacionForm />` y `<RegistrarReinspeccionForm
+   />` inline, condicionadas a `estado === "ABIERTA"` y, para la
+   reinspección, a que la subsanación no tenga ya un
+   `resultado_reinspeccion`). Deliberadamente **no se agregó un fetch
+   extra para saber si una línea de inspección ya tiene acta** —
+   `InspeccionDetalleOut` no expone esa relación y el backend ya
+   responde 422 con mensaje claro ante un duplicado, mismo criterio de
+   "backend como autoridad" que RN-01/RN-03 en la Sesión 5 (verificado en
+   el navegador: `ACTA-0002` duplicada sobre la misma línea de
+   `ACTA-0001` → 422 legible). Verificado de punta a punta con dos guías
+   descartables: guía 1 con línea parcialmente observada (30 conforme +
+   10 observada de 40) → inspección 201, guía pasa a `OBSERVADO` → acta
+   `ABIERTA` → subsanación → reinspección `CONFORME` → acta `SUBSANADA`,
+   guía `SUBSANADO`; guía 2 con línea totalmente observada (0/40) → acta
+   → subsanación → reinspección `NO_CONFORME` → acta `RECHAZADA`
+   (terminal) pero guía **también** llega a `SUBSANADO` (la guía solo
+   mira si quedan actas `ABIERTA`, no el resultado — cerrar la OC con
+   penalidad es responsabilidad del Módulo 5, no de este módulo, tal
+   como documenta el propio backend). Confirmado también por API (fuera
+   de la UI, que ya oculta el formulario en ese estado): reintentar la
+   reinspección de una subsanación ya resuelta → 422 idempotente, y
+   re-inspeccionar una línea de guía ya inspeccionada → 422. Mismo hueco
+   de RN-20 que Compras (ni `inspecciones.py` ni `actas_observacion.py`
+   filtran por almacenes asignados al usuario) — no se corrige aquí,
+   fuera de alcance (solo frontend).
 
 ## 11. Cómo correr el proyecto
 
