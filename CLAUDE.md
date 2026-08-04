@@ -340,9 +340,18 @@ MySQL corriendo para testear lógica de negocio.
    esquema no trackea stock por lote, solo por almacén+producto).
 8. ~~**Frontend Next.js — Sesión 1**~~ ✅ implementado (scaffold, tema,
    cliente API, auth, shell, Dashboard). Ver sección 12 para arquitectura,
-   decisiones y gotchas descubiertos. Pendiente: las ~23 pantallas
-   restantes del catálogo de la sección 3 del diseño, mismo patrón (Server
-   Component de lista + Client Component de formulario con hooks `orval`).
+   decisiones y gotchas descubiertos.
+   ~~**Sesión 2 — Módulo 02 Proveedores y Contratos**~~ ✅ implementado
+   (CRUD completo: `/proveedores` + `/proveedores/nuevo` +
+   `/proveedores/[id]/editar`, `/proveedores/contratos` +
+   `/proveedores/contratos/nuevo` + `/proveedores/contratos/[id]` con
+   cronograma, productos contratados y cambio de estado). Primera vez que
+   un Client Component pasa por `app/api/backend/[...path]/route.ts` en
+   vez de `server-fetch.ts` — encontró y corrigió un bug real de Sesión 1
+   ahí (ver punto 6 abajo). Deja fijo el patrón de pantallas con
+   escritura real (formularios `orval` + `useMutation`, filtros/paginación
+   por searchParam, badges de estado) para replicar en las ~20 pantallas
+   restantes del catálogo de la sección 3 del diseño.
 
 ## 11. Cómo correr el proyecto
 
@@ -390,15 +399,30 @@ son obvias leyendo el código:
    el servidor. Es intencional: evita compartir `SECRET_KEY` entre los
    `.env` de frontend y backend; la autorización real la sigue haciendo
    FastAPI en cada request.
-6. **Gotcha de entorno (no de código): `passlib==1.7.4` + `bcrypt>=4.0`
-   rompe `hash_password`/`verify_password`** (`ValueError: password cannot
-   be longer than 72 bytes...` — falla en la auto-detección interna de
-   passlib, no en la contraseña real del usuario). `requirements.txt` no
-   fija versión de `bcrypt`, así que un `pip install` fresco (o una
-   imagen Docker reconstruida) puede traer una versión incompatible. Se
-   detectó al preparar una base SQLite descartable para probar el login
-   del frontend sin Docker/MySQL disponibles en el entorno; el workaround
-   usado fue instalar `bcrypt<4.0` en el venv de prueba. **No se tocó
-   `requirements.txt`** (fuera de alcance de la sesión de frontend) — si
-   vuelve a aparecer, la solución permanente es fijar `bcrypt<4.0` (o
-   migrar a `bcrypt` sin `passlib`) en `backend/requirements.txt`.
+6. ~~**Gotcha de entorno: `passlib==1.7.4` + `bcrypt>=4.0` rompe
+   `hash_password`/`verify_password`**~~ ✅ corregido — `requirements.txt`
+   no fijaba versión de `bcrypt`, así que un `pip install` fresco (o una
+   imagen Docker reconstruida) podía traer una versión incompatible
+   (`ValueError: password cannot be longer than 72 bytes...`, falla en la
+   auto-detección interna de passlib, no en la contraseña real del
+   usuario). Se detectó al preparar una base SQLite descartable para
+   probar el login del frontend sin Docker/MySQL disponibles en el
+   entorno. Fix aplicado: `bcrypt==3.2.2` fijado explícitamente en
+   `backend/requirements.txt`, verificado con reinstalación limpia +
+   suite completa de tests (10/10).
+7. **`app/api/backend/[...path]/route.ts` duplicaba el prefijo `/api/v1`**
+   (bug real de Sesión 1, corregido en Sesión 2 al ser la primera vez que
+   un Client Component pasa por esta ruta en vez de `server-fetch.ts`, que
+   nunca la ejercitó). Las URLs que genera orval ya incluyen `/api/v1`
+   (vienen del OpenAPI del backend, ej. `/api/v1/proveedores`), y ese
+   prefijo queda capturado dentro de `path` (todo lo que sigue a
+   `/api/backend/`). El handler armaba la URL final con `API_URL` (que
+   YA incluye `/api/v1`) + `path.join("/")` (que TAMBIÉN incluye
+   `api/v1/...`), resultando en `/api/v1/api/v1/proveedores` → 404 del
+   backend. Fix: `API_ORIGIN` (origen pelado, sin `/api/v1`) para esta
+   ruta específica — ver el comentario en el archivo. Lección: un camino
+   de datos sin ejercitar por ninguna pantalla real puede tener bugs
+   invisibles hasta la primera pantalla que sí lo usa; conviene probar
+   cada camino (Server Component *y* Client Component) al menos una vez
+   temprano, no asumir que "ya se probó en la sesión anterior" cubre
+   ambos.

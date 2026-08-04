@@ -16,6 +16,12 @@ import {
  * de la sesión — esto es la mitad "Client Component" de ese diseño).
  */
 const API_URL = process.env.API_URL ?? "http://localhost:8000/api/v1";
+// Las URLs que genera orval ya incluyen el prefijo `/api/v1` (vienen del
+// OpenAPI del backend, ej. `/api/v1/proveedores`), y ese prefijo queda
+// capturado dentro de `path` (todo lo que sigue a `/api/backend/`). Por
+// eso acá se usa el origen pelado, no `API_URL` (que ya trae `/api/v1`
+// para los demás usos de este archivo) — si no, el prefijo queda duplicado.
+const API_ORIGIN = API_URL.replace(/\/api\/v1\/?$/, "");
 
 async function forwardToBackend(
   request: NextRequest,
@@ -23,7 +29,7 @@ async function forwardToBackend(
   accessToken: string | undefined,
 ) {
   const search = request.nextUrl.search;
-  const url = `${API_URL}/${path.join("/")}${search}`;
+  const url = `${API_ORIGIN}/${path.join("/")}${search}`;
   const hasBody = !["GET", "HEAD"].includes(request.method);
 
   return fetch(url, {
