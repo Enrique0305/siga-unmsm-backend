@@ -11,7 +11,7 @@ from datetime import date, timedelta
 import pytest
 from httpx import AsyncClient
 
-from tests.test_compras import _headers_admin, _preparar_contrato_con_producto, client  # noqa: F401
+from tests.test_compras import _headers_admin, _headers_rol, _preparar_contrato_con_producto, client  # noqa: F401
 
 
 async def _crear_guia_completa(
@@ -242,3 +242,109 @@ async def test_flujo_inspeccion_completo(client: AsyncClient):
 
     guia_2_final = await client.get(f"/api/v1/guias-remision/{guia_ctx_2['guia_remision_id']}", headers=headers)
     assert guia_2_final.json()["estado"] == "SUBSANADO"
+
+
+@pytest.mark.asyncio
+async def test_rn20_alcance_por_almacen(client: AsyncClient):
+    """RN-20: inspecciones.py y actas_observacion.py ahora derivan el
+    almacén destino de la guía (vía guia_remision_detalle -> guia_remision)
+    y validan el acceso del usuario antes de escribir."""
+    headers = _headers_admin()
+    ctx = await _preparar_contrato_con_producto(client, headers)
+    guia_ctx = await _crear_guia_completa(client, headers, ctx, "OC-INSP-RN20", "GR-INSP-RN20", cantidad=40)
+
+    headers_inspector_sin_acceso = _headers_rol("INSPECTOR", almacenes=[2])
+    headers_inspector_con_acceso = _headers_rol("INSPECTOR", almacenes=[1])
+
+    # 1) crear inspección sin acceso al almacén destino de la guía (1) -> 403
+    inspeccion_bloqueada = await client.post(
+        "/api/v1/inspecciones",
+        headers=headers_inspector_sin_acceso,
+        json={
+            "guia_remision_id": guia_ctx["guia_remision_id"],
+            "detalle": [
+                {
+                    "guia_remision_detalle_id": guia_ctx["guia_remision_detalle_id"],
+                    "cantidad_conforme": 30,
+                    "cantidad_observada": 10,
+                }
+            ],
+        },
+    )
+    assert inspeccion_bloqueada.status_code == 403
+    assert "RN-20" in inspeccion_bloqueada.json()["detail"]
+
+    inspeccion_ok = await client.post(
+        "/api/v1/inspecciones",
+        headers=headers_inspector_con_acceso,
+        json={
+            "guia_remision_id": guia_ctx["guia_remision_id"],
+            "detalle": [
+                {
+                    "guia_remision_detalle_id": guia_ctx["guia_remision_detalle_id"],
+                    "cantidad_conforme": 30,
+                    "cantidad_observada": 10,
+                }
+            ],
+        },
+    )
+    assert inspeccion_ok.status_code == 201, inspeccion_ok.text
+    inspeccion_detalle_id = inspeccion_ok.json()["detalle"][0]["inspeccion_detalle_id"]
+
+    # 2) crear acta sin acceso -> 403
+    acta_bloqueada = await client.post(
+        f"/api/v1/actas-observacion/desde-inspeccion-detalle/{inspeccion_detalle_id}",
+        headers=headers_inspector_sin_acceso,
+        json={
+            "numero_acta": "ACTA-RN20-1",
+            "motivo": "test",
+            "plazo_subsanacion": (date.today() + timedelta(days=5)).isoformat(),
+        },
+    )
+    assert acta_bloqueada.status_code == 403
+
+    acta_resp = await client.post(
+        f"/api/v1/actas-observacion/desde-inspeccion-detalle/{inspeccion_detalle_id}",
+        headers=headers_inspector_con_acceso,
+        json={
+            "numero_acta": "ACTA-RN20-1",
+            "motivo": "test",
+            "plazo_subsanacion": (date.today() + timedelta(days=5)).isoformat(),
+        },
+    )
+    assert acta_resp.status_code == 201, acta_resp.text
+    acta_id = acta_resp.json()["acta_observacion_id"]
+
+    # 3) subsanación (rol PROVEEDOR) sin acceso -> 403
+    headers_proveedor_sin_acceso = _headers_rol("PROVEEDOR", almacenes=[2])
+    headers_proveedor_con_acceso = _headers_rol("PROVEEDOR", almacenes=[1])
+
+    subsanacion_bloqueada = await client.post(
+        f"/api/v1/actas-observacion/{acta_id}/subsanaciones",
+        headers=headers_proveedor_sin_acceso,
+        json={"fecha_presentacion": date.today().isoformat(), "descripcion": "test"},
+    )
+    assert subsanacion_bloqueada.status_code == 403
+
+    subsanacion_resp = await client.post(
+        f"/api/v1/actas-observacion/{acta_id}/subsanaciones",
+        headers=headers_proveedor_con_acceso,
+        json={"fecha_presentacion": date.today().isoformat(), "descripcion": "test"},
+    )
+    assert subsanacion_resp.status_code == 201, subsanacion_resp.text
+    subsanacion_id = subsanacion_resp.json()["subsanacion_id"]
+
+    # 4) reinspección sin acceso -> 403
+    reinspeccion_bloqueada = await client.patch(
+        f"/api/v1/actas-observacion/subsanaciones/{subsanacion_id}/reinspeccion",
+        headers=headers_inspector_sin_acceso,
+        json={"resultado_reinspeccion": "CONFORME"},
+    )
+    assert reinspeccion_bloqueada.status_code == 403
+
+    reinspeccion_ok = await client.patch(
+        f"/api/v1/actas-observacion/subsanaciones/{subsanacion_id}/reinspeccion",
+        headers=headers_inspector_con_acceso,
+        json={"resultado_reinspeccion": "CONFORME"},
+    )
+    assert reinspeccion_ok.status_code == 200, reinspeccion_ok.text

@@ -79,6 +79,11 @@ def _headers_admin():
     return {"Authorization": f"Bearer {token}"}
 
 
+def _headers_rol(rol: str, almacenes: list[int]) -> dict:
+    token = create_access_token(usuario_id=2, rol=rol, almacenes=almacenes, acceso_todos_almacenes=False)
+    return {"Authorization": f"Bearer {token}"}
+
+
 async def _preparar_contrato_con_producto(client: AsyncClient, headers: dict) -> dict:
     """Replica el flujo de Módulo 2 hasta tener un producto_contratado con
     saldo (cantidad_contratada=100, precio_unitario=5.5 -> saldo_fisico=100,
@@ -386,3 +391,203 @@ async def test_flujo_compras_completo(client: AsyncClient):
 
     contrato_tras_anular = await client.get(f"/api/v1/contratos/{ctx['contrato_id']}", headers=headers)
     assert contrato_tras_anular.json()["productos_contratados"][0]["saldo_fisico"] == pytest.approx(40.0)
+
+
+@pytest.mark.asyncio
+async def test_rn20_alcance_por_almacen(client: AsyncClient):
+    """RN-20: pedidos_semanales.py, ordenes_compra.py y guias_remision.py
+    ahora validan que el usuario tenga acceso al almacén involucrado antes
+    de escribir (antes solo Almacén/Cocina lo hacían)."""
+    headers_admin = _headers_admin()
+    ctx = await _preparar_contrato_con_producto(client, headers_admin)
+
+    headers_sin_acceso = _headers_rol("LOGISTICA_CENTRAL", almacenes=[1])
+    headers_con_acceso = _headers_rol("LOGISTICA_CENTRAL", almacenes=[2])
+
+    # 1) pedido semanal: NUTRICION sin acceso al almacén 2 -> 403 (el check
+    # corre antes de cualquier validación de FK, así que no hace falta una
+    # OC/menú reales para probarlo).
+    pedido_bloqueado = await client.post(
+        "/api/v1/pedidos-semanales",
+        headers=_headers_rol("NUTRICION", almacenes=[1]),
+        json={
+            "orden_compra_id": 1,
+            "menu_id": ctx["menu_id"],
+            "almacen_id": 2,
+            "semana_inicio": date.today().isoformat(),
+            "semana_fin": (date.today() + timedelta(days=6)).isoformat(),
+        },
+    )
+    assert pedido_bloqueado.status_code == 403
+    assert "RN-20" in pedido_bloqueado.json()["detail"]
+
+    # 2) OC: distribución completa en un almacén sin acceso -> 403
+    oc_bloqueada = await client.post(
+        "/api/v1/ordenes-compra",
+        headers=headers_sin_acceso,
+        json={
+            "numero_oc": "OC-RN20-001",
+            "contrato_id": ctx["contrato_id"],
+            "periodo_mes": date.today().replace(day=1).isoformat(),
+            "detalle": [
+                {
+                    "producto_contratado_id": ctx["producto_contratado_id"],
+                    "cantidad_solicitada": 10,
+                    "distribucion": [{"almacen_id": 2, "cantidad_distribuida": 10}],
+                }
+            ],
+        },
+    )
+    assert oc_bloqueada.status_code == 403
+    assert "RN-20" in oc_bloqueada.json()["detail"]
+
+    # 2b) ALL, no ANY: distribución entre almacén 1 (autorizado) y 2 (no) -> 403 igual
+    oc_bloqueada_parcial = await client.post(
+        "/api/v1/ordenes-compra",
+        headers=headers_sin_acceso,
+        json={
+            "numero_oc": "OC-RN20-002",
+            "contrato_id": ctx["contrato_id"],
+            "periodo_mes": date.today().replace(day=1).isoformat(),
+            "detalle": [
+                {
+                    "producto_contratado_id": ctx["producto_contratado_id"],
+                    "cantidad_solicitada": 10,
+                    "distribucion": [
+                        {"almacen_id": 1, "cantidad_distribuida": 5},
+                        {"almacen_id": 2, "cantidad_distribuida": 5},
+                    ],
+                }
+            ],
+        },
+    )
+    assert oc_bloqueada_parcial.status_code == 403
+
+    # 3) OC creada por admin, distribuida solo en el almacén 2, para probar
+    # el bloqueo de PATCH estado y autorizar-excedente sobre un usuario
+    # restringido al almacén 1.
+    oc_resp = await client.post(
+        "/api/v1/ordenes-compra",
+        headers=headers_admin,
+        json={
+            "numero_oc": "OC-RN20-003",
+            "contrato_id": ctx["contrato_id"],
+            "periodo_mes": date.today().replace(day=1).isoformat(),
+            "detalle": [
+                {
+                    "producto_contratado_id": ctx["producto_contratado_id"],
+                    "cantidad_solicitada": 10,
+                    "distribucion": [{"almacen_id": 2, "cantidad_distribuida": 10}],
+                }
+            ],
+        },
+    )
+    assert oc_resp.status_code == 201, oc_resp.text
+    oc = oc_resp.json()
+    orden_compra_id = oc["orden_compra_id"]
+    orden_compra_detalle_id = oc["detalle"][0]["orden_compra_detalle_id"]
+
+    estado_bloqueado = await client.patch(
+        f"/api/v1/ordenes-compra/{orden_compra_id}/estado", headers=headers_sin_acceso, json={"estado": "ANULADA"}
+    )
+    assert estado_bloqueado.status_code == 403
+
+    excedente_bloqueado = await client.post(
+        f"/api/v1/ordenes-compra/detalle/{orden_compra_detalle_id}/autorizaciones-excedente",
+        headers=headers_sin_acceso,
+        json={"cantidad_excedente": 1, "justificacion": "test"},
+    )
+    assert excedente_bloqueado.status_code == 403
+
+    # y con acceso al almacén 2, sí puede
+    estado_ok = await client.patch(
+        f"/api/v1/ordenes-compra/{orden_compra_id}/estado", headers=headers_con_acceso, json={"estado": "ANULADA"}
+    )
+    assert estado_ok.status_code == 200, estado_ok.text
+
+    # 4) guía de remisión: PROVEEDOR sin acceso al almacén destino -> 403
+    headers_proveedor_sin_acceso = _headers_rol("PROVEEDOR", almacenes=[1])
+    headers_proveedor_con_acceso = _headers_rol("PROVEEDOR", almacenes=[2])
+
+    guia_bloqueada = await client.post(
+        "/api/v1/guias-remision",
+        headers=headers_proveedor_sin_acceso,
+        json={
+            "numero_guia": "GR-RN20-001",
+            "proveedor_id": ctx["proveedor_id"],
+            "orden_compra_id": orden_compra_id,
+            "pedido_semanal_id": 1,
+            "almacen_destino_id": 2,
+            "fecha_entrega": date.today().isoformat(),
+            "detalle": [{"orden_compra_detalle_id": orden_compra_detalle_id, "cantidad_entregada": 1}],
+        },
+    )
+    assert guia_bloqueada.status_code == 403
+    assert "RN-20" in guia_bloqueada.json()["detail"]
+
+    # 5) agregar línea a una guía existente: se prepara una guía real sobre
+    # el almacén 2 (admin) y se intenta agregar una línea como PROVEEDOR sin
+    # acceso a ese almacén.
+    oc2_resp = await client.post(
+        "/api/v1/ordenes-compra",
+        headers=headers_admin,
+        json={
+            "numero_oc": "OC-RN20-004",
+            "contrato_id": ctx["contrato_id"],
+            "periodo_mes": date.today().replace(day=1).isoformat(),
+            "detalle": [
+                {
+                    "producto_contratado_id": ctx["producto_contratado_id"],
+                    "cantidad_solicitada": 10,
+                    "distribucion": [{"almacen_id": 2, "cantidad_distribuida": 10}],
+                }
+            ],
+        },
+    )
+    assert oc2_resp.status_code == 201, oc2_resp.text
+    oc2 = oc2_resp.json()
+    orden_compra_2_id = oc2["orden_compra_id"]
+    orden_compra_detalle_2_id = oc2["detalle"][0]["orden_compra_detalle_id"]
+
+    pedido2_resp = await client.post(
+        "/api/v1/pedidos-semanales",
+        headers=headers_admin,
+        json={
+            "orden_compra_id": orden_compra_2_id,
+            "menu_id": ctx["menu_id"],
+            "almacen_id": 2,
+            "semana_inicio": date.today().isoformat(),
+            "semana_fin": (date.today() + timedelta(days=6)).isoformat(),
+        },
+    )
+    assert pedido2_resp.status_code == 201, pedido2_resp.text
+
+    guia2_resp = await client.post(
+        "/api/v1/guias-remision",
+        headers=headers_admin,
+        json={
+            "numero_guia": "GR-RN20-002",
+            "proveedor_id": ctx["proveedor_id"],
+            "orden_compra_id": orden_compra_2_id,
+            "pedido_semanal_id": pedido2_resp.json()["pedido_semanal_id"],
+            "almacen_destino_id": 2,
+            "fecha_entrega": date.today().isoformat(),
+            "detalle": [{"orden_compra_detalle_id": orden_compra_detalle_2_id, "cantidad_entregada": 5}],
+        },
+    )
+    assert guia2_resp.status_code == 201, guia2_resp.text
+    guia2_id = guia2_resp.json()["guia_remision_id"]
+
+    detalle_bloqueado = await client.post(
+        f"/api/v1/guias-remision/{guia2_id}/detalle",
+        headers=headers_proveedor_sin_acceso,
+        json={"orden_compra_detalle_id": orden_compra_detalle_2_id, "cantidad_entregada": 1},
+    )
+    assert detalle_bloqueado.status_code == 403
+
+    detalle_ok = await client.post(
+        f"/api/v1/guias-remision/{guia2_id}/detalle",
+        headers=headers_proveedor_con_acceso,
+        json={"orden_compra_detalle_id": orden_compra_detalle_2_id, "cantidad_entregada": 1},
+    )
+    assert detalle_ok.status_code == 201, detalle_ok.text

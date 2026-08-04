@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import CurrentUser, get_current_user, require_roles
+from app.api.deps import CurrentUser, get_current_user, require_roles, verificar_acceso_almacen
 from app.crud.inspeccion import inspeccion_repo
 from app.db.session import get_db
+from app.models.compras import GuiaRemision
 from app.schemas.common import Page
 from app.schemas.inspeccion import InspeccionCreate, InspeccionDetailOut, InspeccionOut
 
@@ -46,6 +47,10 @@ async def crear_inspeccion(
     """Cada línea de guía solo puede inspeccionarse una vez; la suma
     conforme+observada debe igualar lo entregado. Recalcula
     guia_remision.estado (PENDIENTE -> PARCIAL -> CONFORME/OBSERVADO)."""
+    guia = await db.get(GuiaRemision, data.guia_remision_id)
+    if guia is not None:
+        verificar_acceso_almacen(current, guia.almacen_destino_id)
+
     try:
         inspeccion = await inspeccion_repo.crear(db, data, inspector_id=current.usuario_id)
         await db.commit()

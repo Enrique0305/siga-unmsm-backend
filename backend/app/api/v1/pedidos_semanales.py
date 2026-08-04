@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import CurrentUser, get_current_user, require_roles
+from app.api.deps import CurrentUser, get_current_user, require_roles, verificar_acceso_almacen
 from app.crud.pedido_semanal import pedido_semanal_repo
 from app.db.session import get_db
 from app.schemas.common import Page
@@ -48,9 +48,10 @@ async def obtener_pedido_semanal(
 async def crear_pedido_semanal(
     data: PedidoSemanalCreate,
     db: AsyncSession = Depends(get_db),
-    _current: CurrentUser = Depends(require_roles(*ROLES_EDICION)),
+    current: CurrentUser = Depends(require_roles(*ROLES_EDICION)),
 ) -> PedidoSemanalOut:
     """RN-16: único por combinación (menú, almacén, semana_inicio)."""
+    verificar_acceso_almacen(current, data.almacen_id)
     try:
         pedido = await pedido_semanal_repo.crear(db, data)
         await db.commit()

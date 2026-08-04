@@ -2,9 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import CurrentUser, get_current_user, require_roles
+from app.api.deps import CurrentUser, get_current_user, require_roles, verificar_acceso_almacen
 from app.crud.guia_remision import guia_remision_repo
 from app.db.session import get_db
+from app.models.compras import GuiaRemision
 from app.schemas.common import Page
 from app.schemas.compra import (
     GuiaRemisionCreate,
@@ -69,11 +70,12 @@ async def obtener_guia_remision(
 async def crear_guia_remision(
     data: GuiaRemisionCreate,
     db: AsyncSession = Depends(get_db),
-    _current: CurrentUser = Depends(require_roles(*ROLES_EDICION)),
+    current: CurrentUser = Depends(require_roles(*ROLES_EDICION)),
 ) -> GuiaRemisionDetailOut:
     """RN-02 (vinculada a OC + pedido semanal) · RN-03 (cantidad entregada no
     excede el saldo pendiente de la línea de OC) · RN-13 (almacén destino
     obligatorio, ya forzado por el esquema)."""
+    verificar_acceso_almacen(current, data.almacen_destino_id)
     try:
         guia = await guia_remision_repo.crear(db, data)
         await db.commit()
@@ -97,8 +99,12 @@ async def agregar_detalle_guia(
     guia_remision_id: int,
     data: GuiaRemisionDetalleIn,
     db: AsyncSession = Depends(get_db),
-    _current: CurrentUser = Depends(require_roles(*ROLES_EDICION)),
+    current: CurrentUser = Depends(require_roles(*ROLES_EDICION)),
 ) -> GuiaRemisionDetalleOut:
+    guia = await db.get(GuiaRemision, guia_remision_id)
+    if guia is not None:
+        verificar_acceso_almacen(current, guia.almacen_destino_id)
+
     try:
         detalle = await guia_remision_repo.agregar_detalle(db, guia_remision_id, data)
         await db.commit()

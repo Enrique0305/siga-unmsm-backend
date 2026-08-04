@@ -1,11 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from app.api.deps import CurrentUser, get_current_user, require_roles
+from app.api.deps import CurrentUser, get_current_user, require_roles, verificar_acceso_almacen
 from app.crud.informe_conformidad import informe_conformidad_repo
 from app.crud.orden_compra import orden_compra_repo
 from app.db.session import get_db
+from app.models.compras import OrdenCompraDetalle
 from app.schemas.common import Page
 from app.schemas.compra import (
     AutorizacionExcedenteIn,
@@ -59,6 +62,10 @@ async def crear_orden_compra(
     """RN-01 (saldo suficiente) · RN-09 (precio del contrato, no editable) ·
     RN-15 (distribución multialmacén = cantidad solicitada) · RN-19 (saldo
     GLOBAL, no por almacén)."""
+    almacen_ids = {dist.almacen_id for detalle in data.detalle for dist in detalle.distribucion}
+    for almacen_id in almacen_ids:
+        verificar_acceso_almacen(current, almacen_id)
+
     try:
         oc = await orden_compra_repo.crear(db, data, responsable_id=current.usuario_id)
         await db.commit()
@@ -92,6 +99,10 @@ async def cambiar_estado_orden_compra(
     if oc is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Orden de compra no encontrada")
 
+    almacen_ids = {dist.almacen_id for det in oc.detalle for dist in det.distribucion}
+    for almacen_id in almacen_ids:
+        verificar_acceso_almacen(current, almacen_id)
+
     try:
         if data.estado == "ANULADA":
             await orden_compra_repo.anular(db, oc)
@@ -121,6 +132,16 @@ async def autorizar_excedente(
 ) -> AutorizacionExcedenteOut:
     """RN-03: autoriza que esta línea de OC reciba, vía guía de remisión, hasta
     `cantidad_excedente` por encima de `cantidad_solicitada`."""
+    detalle_result = await db.execute(
+        select(OrdenCompraDetalle)
+        .where(OrdenCompraDetalle.orden_compra_detalle_id == orden_compra_detalle_id)
+        .options(selectinload(OrdenCompraDetalle.distribucion))
+    )
+    detalle = detalle_result.scalar_one_or_none()
+    if detalle is not None:
+        for dist in detalle.distribucion:
+            verificar_acceso_almacen(current, dist.almacen_id)
+
     try:
         autorizacion = await orden_compra_repo.autorizar_excedente(
             db,

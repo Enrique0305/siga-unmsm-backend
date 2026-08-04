@@ -723,6 +723,72 @@ MySQL corriendo para testear lógica de negocio.
    tablas de Catálogos se pintan. `npx tsc --noEmit` + `npx eslint .` +
    `npx next build` limpios sobre el repo completo (58 rutas generadas,
    incluidas las 8 nuevas de este módulo).
+   ~~**Sesión 11 — Cerrar el hueco RN-20 en Compras y Recepción**~~ ✅
+   implementado. Backend-only, sin cambios de frontend ni de modelos/
+   schemas — cierra un hueco documentado explícitamente desde las
+   Sesiones 5 y 6 ("mismo hueco de RN-20 que Compras... fuera de alcance,
+   solo frontend"). Cinco routers nunca validaban RN-20 en sus escrituras:
+   `pedidos_semanales.py`, `ordenes_compra.py`, `guias_remision.py`,
+   `inspecciones.py`, `actas_observacion.py`. Se aplicó el mismo patrón ya
+   probado en Almacén/Cocina (`deps.py::verificar_acceso_almacen`) a cada
+   endpoint POST/PATCH de esos 5 archivos, resolviendo `almacen_id` según
+   su origen real: campo directo del body
+   (`PedidoSemanalCreate.almacen_id`, `GuiaRemisionCreate.
+   almacen_destino_id`), o derivado de una entidad relacionada vía FK
+   cuando el body no lo trae (`InspeccionCreate.guia_remision_id` →
+   `GuiaRemision.almacen_destino_id`; `guia_remision_id`/
+   `orden_compra_detalle_id`/`inspeccion_detalle_id`/
+   `acta_observacion_id`/`subsanacion_id` como path params → un `db.get`
+   en cadena hasta llegar al almacén). **Deliberadamente NO se tocó
+   ningún `GET`/lista** de estos 5 archivos — mismo criterio ya
+   documentado en la Sesión 7 (Almacén tampoco filtra lecturas por
+   almacenes del usuario), así que esto es consistente con el resto del
+   backend, no un vacío nuevo.
+   `OrdenCompra` es el único caso multialmacén real (RN-15,
+   `OrdenCompraDistribucion` 1..N por línea) — sin precedente de código
+   para decidir "ALL vs ANY", se resolvió **ALL** (el usuario necesita
+   acceso a *todos* los almacenes que la escritura toca en una sola
+   llamada atómica), verificado con un test que prueba explícitamente que
+   una distribución mitad-autorizada-mitad-no sigue bloqueada. Caso
+   particular encontrado al implementar `actas_observacion.py`: la cadena
+   de FKs para llegar al almacén cambia en cada uno de los 3 endpoints de
+   escritura (`inspeccion_detalle_id` → `acta_observacion_id` →
+   `subsanacion_id`, cada uno un salto más), así que se armaron 3 helpers
+   privados que se componen (`_almacen_id_de_inspeccion_detalle` →
+   `_almacen_id_de_acta` → `_almacen_id_de_subsanacion`) en vez de repetir
+   la cadena completa en cada endpoint;
+   `InspeccionDetalle.guia_remision_detalle` es `lazy="joined"` así que el
+   primer salto no cuesta una query aparte, pero
+   `GuiaRemisionDetalle.guia_remision` no lo es, así que sí hace falta un
+   `db.get(GuiaRemision, ...)` adicional ahí. **Límite consciente**: si el
+   `db.get`/`select` de la entidad no encuentra nada (ID inexistente), el
+   endpoint no levanta su propio 404 — se deja pasar sin llamar a
+   `verificar_acceso_almacen` para que el CRUD ya existente levante el
+   `ValueError` de "no encontrado" que ya tenía, sin duplicar esa
+   validación en dos capas.
+   `test_compras.py`/`test_inspeccion.py` solo probaban con tokens
+   `ADMIN` (`acceso_todos_almacenes=True`) — se agregó `_headers_rol(rol,
+   almacenes)` (mismo patrón que `test_almacen.py`/`test_cocina.py`) y un
+   `test_rn20_alcance_por_almacen` en cada archivo cubriendo los 9
+   endpoints tocados, cada uno con caso bloqueado (403 con el mensaje
+   exacto de RN-20) y caso permitido. **Nota real encontrada al verificar
+   manualmente vía API contra un seed real**: `ordenes_compra.py` solo
+   admite escribir a `ADMIN`/`LOGISTICA_CENTRAL`, y ambos roles tienen
+   `acceso_todos_almacenes=True` siempre (confirmado vía
+   `GET /catalogos/roles` contra el seed real) — así que ese chequeo
+   específico es defensivo/a futuro (protege si algún día se agrega un
+   rol con acceso restringido a `ROLES_EDICION` de OC), no alcanzable hoy
+   por un login legítimo; los tests de pytest sí lo ejercitan porque
+   construyen el JWT directo con `create_access_token(rol=
+   "LOGISTICA_CENTRAL", acceso_todos_almacenes=False)`, sin pasar por
+   login. Los otros 4 archivos sí involucran roles reales con
+   `acceso_todos_almacenes=False` (`NUTRICION`, `PROVEEDOR`, `INSPECTOR`)
+   y se verificaron además con logins reales contra el seed:
+   `pedidos-semanales` y `guias-remision` devolvieron el 403 exacto de
+   RN-20 al apuntar a un almacén no asignado, y pasaron la validación
+   (fallando después por otro motivo esperado, sin datos de prueba
+   completos) al apuntar al almacén sí asignado. `pytest -q` completo:
+   18 tests en verde (suite previa intacta + los 2 nuevos).
 
 ## 11. Cómo correr el proyecto
 
