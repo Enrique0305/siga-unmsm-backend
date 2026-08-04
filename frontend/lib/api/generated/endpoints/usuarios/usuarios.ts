@@ -29,7 +29,8 @@ import type {
   ListarUsuariosApiV1UsuariosGetParams,
   PageUsuarioOut,
   UsuarioCreate,
-  UsuarioOut
+  UsuarioOut,
+  UsuarioUpdate
 } from '../../model';
 
 import { apiFetch } from '../../../mutator';
@@ -381,3 +382,93 @@ export function useMiPerfilApiV1UsuariosMeGet<TData = Awaited<ReturnType<typeof 
 
 
 
+export type actualizarUsuarioApiV1UsuariosUsuarioIdPatchResponse200 = {
+  data: UsuarioOut
+  status: 200
+}
+
+export type actualizarUsuarioApiV1UsuariosUsuarioIdPatchResponse422 = {
+  data: HTTPValidationError
+  status: 422
+}
+
+export type actualizarUsuarioApiV1UsuariosUsuarioIdPatchResponseSuccess = (actualizarUsuarioApiV1UsuariosUsuarioIdPatchResponse200) & {
+  headers: Headers;
+};
+export type actualizarUsuarioApiV1UsuariosUsuarioIdPatchResponseError = (actualizarUsuarioApiV1UsuariosUsuarioIdPatchResponse422) & {
+  headers: Headers;
+};
+
+export type actualizarUsuarioApiV1UsuariosUsuarioIdPatchResponse = (actualizarUsuarioApiV1UsuariosUsuarioIdPatchResponseSuccess | actualizarUsuarioApiV1UsuariosUsuarioIdPatchResponseError)
+
+export const getActualizarUsuarioApiV1UsuariosUsuarioIdPatchUrl = (usuarioId: number,) => {
+
+
+
+
+  return `/api/v1/usuarios/${usuarioId}`
+}
+
+/**
+ * @summary Actualizar Usuario
+ */
+export const actualizarUsuarioApiV1UsuariosUsuarioIdPatch = async (usuarioId: number,
+    usuarioUpdate: UsuarioUpdate, options?: Parameters<typeof apiFetch>[1]): Promise<actualizarUsuarioApiV1UsuariosUsuarioIdPatchResponse> => {
+
+  return apiFetch<actualizarUsuarioApiV1UsuariosUsuarioIdPatchResponse>(getActualizarUsuarioApiV1UsuariosUsuarioIdPatchUrl(usuarioId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(usuarioUpdate)
+  }
+);}
+
+
+
+
+
+export const getActualizarUsuarioApiV1UsuariosUsuarioIdPatchMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof actualizarUsuarioApiV1UsuariosUsuarioIdPatch>>, TError,{usuarioId: number;data: UsuarioUpdate}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof actualizarUsuarioApiV1UsuariosUsuarioIdPatch>>, TError,{usuarioId: number;data: UsuarioUpdate}, TContext> => {
+
+const mutationKey = ['actualizarUsuarioApiV1UsuariosUsuarioIdPatch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof actualizarUsuarioApiV1UsuariosUsuarioIdPatch>>, {usuarioId: number;data: UsuarioUpdate}> = (props) => {
+          const {usuarioId,data} = props ?? {};
+
+          return  actualizarUsuarioApiV1UsuariosUsuarioIdPatch(usuarioId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ActualizarUsuarioApiV1UsuariosUsuarioIdPatchMutationResult = NonNullable<Awaited<ReturnType<typeof actualizarUsuarioApiV1UsuariosUsuarioIdPatch>>>
+    export type ActualizarUsuarioApiV1UsuariosUsuarioIdPatchMutationBody = UsuarioUpdate
+    export type ActualizarUsuarioApiV1UsuariosUsuarioIdPatchMutationError = HTTPValidationError
+
+    /**
+ * @summary Actualizar Usuario
+ */
+export const useActualizarUsuarioApiV1UsuariosUsuarioIdPatch = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof actualizarUsuarioApiV1UsuariosUsuarioIdPatch>>, TError,{usuarioId: number;data: UsuarioUpdate}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof actualizarUsuarioApiV1UsuariosUsuarioIdPatch>>,
+        TError,
+        {usuarioId: number;data: UsuarioUpdate},
+        TContext
+      > => {
+      return useMutation(getActualizarUsuarioApiV1UsuariosUsuarioIdPatchMutationOptions(options), queryClient);
+    }

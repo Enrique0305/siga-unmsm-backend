@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -6,7 +6,7 @@ from app.core.security import hash_password
 from app.crud.base import CRUDBase
 from app.models.organizacion import UsuarioAlmacenAcceso
 from app.models.usuario import Usuario
-from app.schemas.usuario import UsuarioCreate
+from app.schemas.usuario import UsuarioCreate, UsuarioUpdate
 
 
 class CRUDUsuario(CRUDBase[Usuario]):
@@ -32,6 +32,19 @@ class CRUDUsuario(CRUDBase[Usuario]):
 
         for almacen_id in data.almacen_ids:
             db.add(UsuarioAlmacenAcceso(usuario_id=usuario.usuario_id, almacen_id=almacen_id))
+        await db.flush()
+        return usuario
+
+    async def update_con_almacenes(self, db: AsyncSession, usuario: Usuario, data: UsuarioUpdate) -> Usuario:
+        updates = data.model_dump(exclude_unset=True, exclude={"almacen_ids"})
+        for field, value in updates.items():
+            setattr(usuario, field, value)
+
+        if data.almacen_ids is not None:
+            await db.execute(delete(UsuarioAlmacenAcceso).where(UsuarioAlmacenAcceso.usuario_id == usuario.usuario_id))
+            for almacen_id in data.almacen_ids:
+                db.add(UsuarioAlmacenAcceso(usuario_id=usuario.usuario_id, almacen_id=almacen_id))
+
         await db.flush()
         return usuario
 

@@ -209,6 +209,7 @@ export * from './ubicacionInternaOut';
 export * from './unidadMedidaOut';
 export * from './usuarioCreate';
 export * from './usuarioOut';
+export * from './usuarioUpdate';
 export * from './validationError';
 export * from './valorizacionAlmacenOut';
 export * from './valorNutricional';

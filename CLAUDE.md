@@ -642,6 +642,87 @@ MySQL corriendo para testear lógica de negocio.
    generó el informe de conformidad de esta OC"). `npx tsc --noEmit` +
    `npx eslint .` + `npx next build` limpios sobre el repo completo (49
    rutas generadas, incluidas las 4 nuevas de este módulo).
+   ~~**Sesión 10 — Módulos "Reportes y auditoría" + "Administración"**~~
+   ✅ implementado. Se originó de una revisión explícita de deuda técnica
+   que encontró el hueco más visible del sistema: `frontend/lib/nav.ts`
+   enlazaba `/reportes` y `/administracion` en el sidebar desde la Sesión
+   1, pero ninguna de las dos carpetas existía bajo
+   `frontend/app/(dashboard)/` — cualquier ADMIN que hiciera clic ahí caía
+   en un 404. Primera sesión desde la 4 que vuelve a tocar backend: un
+   agente de exploración confirmó que `reportes.py`/`auditoria.py` estaban
+   completos pero **`usuarios.py` seguía igual que en la Sesión 1**
+   (`GET` lista + `/me`, `POST` crear — nada más), con dos huecos reales
+   que bloqueaban la pantalla de Administración — `UsuarioUpdate`
+   (`schemas/usuario.py`) existía pero no estaba conectado a ningún
+   endpoint, y no había forma de listar los roles disponibles para el
+   select de "Nuevo usuario" (`rol_id` es obligatorio en `UsuarioCreate`).
+   Se agregaron, mismo patrón que los huecos cerrados en Sesión 4:
+   `GET /catalogos/roles` (`catalogos.py`, calca `listar_sedes`) y
+   `PATCH /usuarios/{id}` (`usuarios.py` + nuevo
+   `CRUDUsuario.update_con_almacenes` en `crud/usuario.py` — borra e
+   inserta de nuevo las filas de `UsuarioAlmacenAcceso` si
+   `almacen_ids is not None`, mismo patrón insert que
+   `create_con_almacenes` con un `delete` previo). Primer test dedicado a
+   usuarios (`backend/tests/test_usuarios.py`, no existía ninguno) cubre
+   crear→login, `GET /catalogos/roles`, `PATCH` cambiando rol/estado/
+   almacenes y su efecto real (`estado=INACTIVO` bloquea el login con 403
+   — ya lo hacía `auth.py::login`, solo que nunca se había podido llegar
+   ahí sin el `PATCH`), y 403 si quien llama no es `ADMIN`. **Límite de
+   diseño aceptado conscientemente**: `UsuarioOut` no expone `sede_id`
+   (solo el modelo y `UsuarioUpdate` lo tienen), así que el formulario de
+   edición de usuario **no muestra el selector de sede** — mostrarlo
+   habría precargado con `""` y el primer submit habría borrado en
+   silencio la sede real del usuario sin que nadie la tocara. Se optó por
+   ocultarlo en modo edición (igual que correo/contraseña, que tampoco se
+   pueden editar) en vez de ampliar el alcance agregando `sede_id` a
+   `UsuarioOut` — anotado aquí por si una sesión futura necesita permitir
+   reasignar sede.
+   Frontend: `/reportes` (4 tabs — Valorización, Comparativo de consumo,
+   Alertas, Auditoría; los 3 endpoints de `reportes.py` solo filtran por
+   `almacen_id` o `producto_id`+rango de fechas, **no** por contrato/
+   proveedor/centro de consumo como promete la sección 3 del diseño — el
+   frontend se construyó alrededor de lo que el backend realmente
+   soporta; `AuditoriaLogOut` no trae nombre de usuario, solo
+   `usuario_id`, así que la tabla muestra "Usuario #N" sin cruzar con
+   `/usuarios` porque ese endpoint es `ADMIN`-only y `LOGISTICA_CENTRAL`
+   —que también ve `/reportes`— recibiría 403 si el cruce se intentara
+   forzado). `/administracion` (3 tabs — Usuarios, Productos, Catálogos):
+   Usuarios reutiliza el patrón `mode:"create"|"edit"` de
+   `ProveedorForm`/`AlmacenForm`, con checkboxes de almacenes que se
+   ocultan si el rol elegido tiene `acceso_todos_almacenes=true`;
+   Productos es CRUD completo (el backend ya lo tenía desde el
+   prerrequisito de Sesión 2, nunca había tenido pantalla propia — solo se
+   consumía como select en formularios de otros módulos); Catálogos es de
+   solo lectura (categorías de alimento, unidades de medida, sedes,
+   centros de consumo — los 4 endpoints de `catalogos.py` son GET-only,
+   confirmado en el código). **"Parámetros del sistema"** (tercer punto de
+   "09 Administración" en el diseño) **no se construyó — no existe ningún
+   modelo ni tabla para eso en todo el backend** (grep sobre `models/`,
+   `schemas/`, `api/`, sin resultados), documentado como límite explícito
+   igual que `almacen_producto_parametro`. **Límite de alcance no resuelto
+   aquí**: ni los 3 endpoints de `reportes.py` ni `GET /auditoria` tienen
+   `require_roles(...)` en el backend — solo `get_current_user` — así que
+   el gate `ADMIN`/`LOGISTICA_CENTRAL` de `/reportes` en `nav.ts` es
+   puramente visual (oculta el ítem del menú, no protege la URL ni la
+   API); mismo criterio que los huecos de RN-20 ya registrados en
+   sesiones anteriores, fuera de alcance de esta sesión. Verificado de
+   punta a punta en el navegador contra una base SQLite descartable con
+   el seed real (`python -m app.seed`, primera vez que una sesión de
+   verificación usa el seed real en vez de reconstruir prerrequisitos a
+   mano, porque esta sesión no depende de una cadena de negocio
+   específica): los 4 tabs de `/reportes` cargan sin datos (esperado en
+   una base recién sembrada) → crear usuario `ALMACENERO` con un almacén
+   asignado → login con esas credenciales confirmado por API (200, JWT
+   con `rol`/`almacenes` correctos) → editar ese usuario a `NUTRICION` +
+   `INACTIVO` desde la UI → login vuelve a intentarse → 403 "Usuario
+   inactivo" → `/reportes/auditoria?entidad=usuario` muestra las filas
+   `CREAR`/`ACTUALIZAR` generadas por el evento global de auditoría
+   (confirma que también audita la entidad `Usuario`, no solo los
+   módulos de negocio) → crear producto → editarlo a `INACTIVO` → el
+   filtro de estado de la lista lo excluye/incluye correctamente → las 4
+   tablas de Catálogos se pintan. `npx tsc --noEmit` + `npx eslint .` +
+   `npx next build` limpios sobre el repo completo (58 rutas generadas,
+   incluidas las 8 nuevas de este módulo).
 
 ## 11. Cómo correr el proyecto
 

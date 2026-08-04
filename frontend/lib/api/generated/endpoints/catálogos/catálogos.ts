@@ -26,6 +26,7 @@ import type {
   HTTPValidationError,
   ListarCentrosConsumoApiV1CatalogosCentrosConsumoGetParams,
   ListarUnidadesMedidaApiV1CatalogosUnidadesMedidaGet200Item,
+  RolOut,
   SedeOut
 } from '../../model';
 
@@ -502,6 +503,118 @@ export function useListarCentrosConsumoApiV1CatalogosCentrosConsumoGet<TData = A
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getListarCentrosConsumoApiV1CatalogosCentrosConsumoGetQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export type listarRolesApiV1CatalogosRolesGetResponse200 = {
+  data: RolOut[]
+  status: 200
+}
+
+export type listarRolesApiV1CatalogosRolesGetResponseSuccess = (listarRolesApiV1CatalogosRolesGetResponse200) & {
+  headers: Headers;
+};
+;
+
+export type listarRolesApiV1CatalogosRolesGetResponse = (listarRolesApiV1CatalogosRolesGetResponseSuccess)
+
+export const getListarRolesApiV1CatalogosRolesGetUrl = () => {
+
+
+
+
+  return `/api/v1/catalogos/roles`
+}
+
+/**
+ * @summary Listar Roles
+ */
+export const listarRolesApiV1CatalogosRolesGet = async ( options?: Parameters<typeof apiFetch>[1]): Promise<listarRolesApiV1CatalogosRolesGetResponse> => {
+
+  return apiFetch<listarRolesApiV1CatalogosRolesGetResponse>(getListarRolesApiV1CatalogosRolesGetUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListarRolesApiV1CatalogosRolesGetQueryKey = () => {
+    return [
+    `/api/v1/catalogos/roles`
+    ] as const;
+    }
+
+
+export const getListarRolesApiV1CatalogosRolesGetQueryOptions = <TData = Awaited<ReturnType<typeof listarRolesApiV1CatalogosRolesGet>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listarRolesApiV1CatalogosRolesGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListarRolesApiV1CatalogosRolesGetQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listarRolesApiV1CatalogosRolesGet>>> = ({ signal }) => listarRolesApiV1CatalogosRolesGet({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listarRolesApiV1CatalogosRolesGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListarRolesApiV1CatalogosRolesGetQueryResult = NonNullable<Awaited<ReturnType<typeof listarRolesApiV1CatalogosRolesGet>>>
+export type ListarRolesApiV1CatalogosRolesGetQueryError = unknown
+
+
+export function useListarRolesApiV1CatalogosRolesGet<TData = Awaited<ReturnType<typeof listarRolesApiV1CatalogosRolesGet>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listarRolesApiV1CatalogosRolesGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listarRolesApiV1CatalogosRolesGet>>,
+          TError,
+          Awaited<ReturnType<typeof listarRolesApiV1CatalogosRolesGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListarRolesApiV1CatalogosRolesGet<TData = Awaited<ReturnType<typeof listarRolesApiV1CatalogosRolesGet>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listarRolesApiV1CatalogosRolesGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listarRolesApiV1CatalogosRolesGet>>,
+          TError,
+          Awaited<ReturnType<typeof listarRolesApiV1CatalogosRolesGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListarRolesApiV1CatalogosRolesGet<TData = Awaited<ReturnType<typeof listarRolesApiV1CatalogosRolesGet>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listarRolesApiV1CatalogosRolesGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Listar Roles
+ */
+
+export function useListarRolesApiV1CatalogosRolesGet<TData = Awaited<ReturnType<typeof listarRolesApiV1CatalogosRolesGet>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listarRolesApiV1CatalogosRolesGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListarRolesApiV1CatalogosRolesGetQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

@@ -6,7 +6,7 @@ from app.api.deps import CurrentUser, get_current_user, require_roles
 from app.crud.usuario import usuario_repo
 from app.db.session import get_db
 from app.schemas.common import Page
-from app.schemas.usuario import UsuarioCreate, UsuarioOut
+from app.schemas.usuario import UsuarioCreate, UsuarioOut, UsuarioUpdate
 
 router = APIRouter(prefix="/usuarios", tags=["Usuarios"])
 
@@ -50,5 +50,21 @@ async def crear_usuario(
     except IntegrityError:
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="El correo ya está registrado")
+    await db.refresh(usuario, attribute_names=["rol"])
+    return await _to_out(db, usuario)
+
+
+@router.patch("/{usuario_id}", response_model=UsuarioOut)
+async def actualizar_usuario(
+    usuario_id: int,
+    data: UsuarioUpdate,
+    db: AsyncSession = Depends(get_db),
+    current: CurrentUser = Depends(require_roles("ADMIN")),
+) -> UsuarioOut:
+    usuario = await usuario_repo.get(db, usuario_id)
+    if usuario is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
+    usuario = await usuario_repo.update_con_almacenes(db, usuario, data)
+    await db.commit()
     await db.refresh(usuario, attribute_names=["rol"])
     return await _to_out(db, usuario)
