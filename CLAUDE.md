@@ -589,6 +589,59 @@ MySQL corriendo para testear lógica de negocio.
    solicitud pasa a `DESPACHADA`) → no se puede anular una solicitud ya
    despachada (422) → tercera solicitud anulada sin despachar
    (`ANULADA`, reserva liberada a 0 sin ningún movimiento de kardex).
+   ~~**Sesión 9 — Módulo Conformidad y pagos** (Informe de conformidad,
+   Penalidad)~~ ✅ implementado. Cierra el último eslabón de
+   trazabilidad de Compras: no decide nada nuevo sobre calidad — solo
+   **lee** `acta_observacion.estado` (ya fijado por Recepción, Sesión 6)
+   para cerrar la OC, generar el informe de pago y, si corresponde, la
+   penalidad automática. Backend 100% completo desde antes — sesión
+   puramente de frontend, con una particularidad: su punto de entrada
+   natural no es una pantalla propia sino el **detalle de OC ya
+   existente** (`compras/[id]/page.tsx`, Sesión 5), extendido con un
+   bloque "Conformidad y pagos" (link al informe existente o
+   `<GenerarInformeForm />` inline) en vez de duplicar el flujo.
+   `/conformidad` (InformeConformidadPago: list + detalle +
+   `<CambiarEstadoInformeForm />`), `/conformidad/penalidades` (Penalidad:
+   list + `/nuevo` manual) — **sin `/conformidad/nuevo`**, mismo criterio
+   que "Crear acta" (Sesión 6) y "Autorizar excedente" (Sesión 5): un
+   informe solo se genera desde el detalle de una OC ya cerrada.
+   `CambiarEstadoOC.tsx` (Sesión 5) no necesitó ningún cambio — ya POSTea
+   `{estado:"CERRADO"}` genérico y hace `router.refresh()`, así que
+   pinta sin tocar nada tanto `CERRADO` como `PENALIZADO` según decida el
+   backend. **Máquina de estados del informe replicada en el cliente**
+   (`ENVIADO→{RECIBIDO,DEVUELTO}`, `RECIBIDO→{EN_PROCESO_DE_PAGO,
+   DEVUELTO}`, `EN_PROCESO_DE_PAGO→{PAGADO,DEVUELTO}`, `PAGADO`/
+   `DEVUELTO` terminales) — a diferencia de `CambiarEstadoOC` (2 destinos
+   fijos), acá cada estado ofrece hasta 2 destinos válidos distintos, así
+   que `CambiarEstadoInformeForm.tsx` itera un `Record<string,string[]>`
+   en vez de un `if` fijo. **Separación de roles real dentro de un mismo
+   ítem de nav** (`nav.ts` agrupa todo bajo `ADMIN, LOGISTICA_CENTRAL,
+   PAGOS`): cerrar OC + generar informe → `ADMIN, LOGISTICA_CENTRAL`
+   (`PAGOS` no puede); cambiar estado del informe → `ADMIN, PAGOS`
+   (`LOGISTICA_CENTRAL` no puede avanzar el pago pese a poder generar el
+   informe). Verificado de punta a punta en el navegador contra una base
+   SQLite descartable con dos OC completas hasta inspección (mismo flujo
+   de `test_pagos.py`): OC-A (línea 100% conforme) → `Cerrar` → `CERRADO`
+   sin penalidad → generar informe (`monto_conforme_total=110.00`,
+   retenido/penalidad en 0) → avanzar
+   `ENVIADO→RECIBIDO→EN_PROCESO_DE_PAGO→PAGADO` (en cada paso solo
+   aparecían los botones de destino válidos) → `fecha_pago` se llena al
+   llegar a `PAGADO`. OC-B (línea parcialmente observada, 15
+   conforme/5 observada): cerrar con la línea `OBSERVADO` sin acta → 422
+   ("tiene líneas OBSERVADO sin acta de observación resuelta") → crear
+   acta (`ABIERTA`) → cerrar de nuevo → 422 (acta abierta sigue sin
+   contar como resuelta) → agregar subsanación + registrar reinspección
+   `NO_CONFORME` → acta pasa a `RECHAZADA` → cerrar OC-B → `PENALIZADO`
+   (no `CERRADO`) → `Penalidad` automática visible en
+   `/conformidad/penalidades` con `monto=27.50` (5 × S/5.50, origen
+   "Automática (acta rechazada)") → generar informe de OC-B
+   (`monto_conforme_total=82.50`, `monto_retenido_total=
+   monto_penalidad_total=27.50`, ambos reflejando la línea rechazada) →
+   penalidad manual en una tercera OC sin informe (OC-C, 201, origen
+   "Manual") → penalidad manual en OC-A (ya con informe) → 422 ("ya se
+   generó el informe de conformidad de esta OC"). `npx tsc --noEmit` +
+   `npx eslint .` + `npx next build` limpios sobre el repo completo (49
+   rutas generadas, incluidas las 4 nuevas de este módulo).
 
 ## 11. Cómo correr el proyecto
 

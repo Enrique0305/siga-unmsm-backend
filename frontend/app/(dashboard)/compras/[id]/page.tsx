@@ -1,11 +1,14 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { AutorizarExcedenteForm } from "@/components/compras/AutorizarExcedenteForm";
 import { CambiarEstadoOC } from "@/components/compras/CambiarEstadoOC";
+import { GenerarInformeForm } from "@/components/conformidad/GenerarInformeForm";
 import { Badge } from "@/components/ui/Badge";
 import { ServerFetchError, serverFetch } from "@/lib/api/server-fetch";
 import { getSession } from "@/lib/auth/session";
 import type { OrdenCompraDetailOut } from "@/lib/api/generated/model/ordenCompraDetailOut";
+import type { PageInformeConformidadPagoOut } from "@/lib/api/generated/model/pageInformeConformidadPagoOut";
 
 const ROLES_EDICION = ["ADMIN", "LOGISTICA_CENTRAL"];
 
@@ -33,6 +36,14 @@ export default async function OrdenCompraDetailPage({
 
   const session = await getSession();
   const puedeEditar = session ? ROLES_EDICION.includes(session.rol) : false;
+
+  const ocCerrada = oc.estado === "CERRADO" || oc.estado === "PENALIZADO";
+  const informes = ocCerrada
+    ? await serverFetch<PageInformeConformidadPagoOut>(
+        `/informes-conformidad-pago?orden_compra_id=${oc.orden_compra_id}&page_size=1`,
+      )
+    : null;
+  const informeExistente = informes?.items[0] ?? null;
 
   return (
     <div className="space-y-6">
@@ -109,6 +120,26 @@ export default async function OrdenCompraDetailPage({
             Autorizar excedente (RN-03)
           </h3>
           <AutorizarExcedenteForm lineas={oc.detalle} />
+        </div>
+      )}
+
+      {ocCerrada && (
+        <div className="rounded-lg border border-border/20 bg-white p-6">
+          <h3 className="mb-3 text-sm font-semibold text-foreground">Conformidad y pagos</h3>
+          {informeExistente ? (
+            <Link
+              href={`/conformidad/${informeExistente.informe_id}`}
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              Ver informe de conformidad {informeExistente.numero_informe}
+            </Link>
+          ) : puedeEditar ? (
+            <GenerarInformeForm ordenCompraId={oc.orden_compra_id} />
+          ) : (
+            <p className="text-sm text-text-secondary">
+              Todavía no se generó un informe de conformidad para esta orden.
+            </p>
+          )}
         </div>
       )}
     </div>
