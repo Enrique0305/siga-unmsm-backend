@@ -32,3 +32,21 @@ class AlmacenOut(BaseModel):
     responsable_id: int
     estado: str
     creado_en: datetime
+
+
+class SedeOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    sede_id: int
+    nombre: str
+    direccion: str | None
+
+
+class CentroConsumoOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    centro_consumo_id: int
+    sede_id: int
+    almacen_id: int
+    nombre: str
+    poblacion_referencia: int | None

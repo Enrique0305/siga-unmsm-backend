@@ -201,10 +201,10 @@ o recetas) · RN-27 (pedido semanal separado por almacén+comedor) · RN-28
 | Catálogos base | `api/v1/catalogos.py` | `/catalogos/categorias-alimento`, `/unidades-medida` | ✅ |
 | Catálogo nutricional (RN-25/26) | `models/catalogos.py`, `crud/alimento.py` | `GET/POST /alimentos`, `POST /alimentos/{id}/versiones` | ✅ |
 | Recetas (RN-22/23/25/26) | `models/receta.py`, `crud/receta.py`, `api/v1/recetas.py` | CRUD + `/estado` + `/versiones` + `/recalcular-nutricion` | ✅ `tests/test_recetas.py` |
-| Planificación/Menús | `models/planificacion.py`, `crud/planificacion.py` | raciones-anuales, menus-quincenales, dias, platos | ✅ |
+| Planificación/Menús (RacionAnual + MenuQuincenal + MenuDia/Plato, RN-22) | `models/planificacion.py`, `crud/planificacion.py` (`CRUDRacionAnual`/`CRUDMenuQuincenal` con `TRANSICIONES_VALIDAS_RACION`/`_MENU`) | `raciones-anuales` CRUD (sin Update) + `/estado`, `menus-quincenales` CRUD (sin Update) + `/estado` + `/dias`, `dias/{id}` + `/platos` | ✅ `tests/test_planificacion.py` |
 | Dosificación/BOM automático (RN-24/27/28) | `models/dosificacion.py`, `crud/dosificacion.py` | `POST/GET /planificacion/dias/{id}/dosificacion` | ✅ |
 | Producto (catálogo logístico, prerrequisito Módulo 2) | `models/catalogos.py::Producto`, `crud/producto.py` | `GET/POST/PATCH /productos` | ✅ `tests/test_contratos.py` |
-| Requerimiento anual (prerrequisito Módulo 2, CRUD manual sin auto-consolidación BOM) | `models/planificacion.py::RequerimientoAnual(Detalle)`, `crud/requerimiento.py` | CRUD + `/estado` (BORRADOR→EN_REVISION→APROBADO→VIGENTE) | ✅ `tests/test_contratos.py` |
+| Requerimiento anual (prerrequisito Módulo 2, CRUD manual sin auto-consolidación BOM) | `models/planificacion.py::RequerimientoAnual(Detalle)`, `crud/requerimiento.py` | CRUD + `/estado` (BORRADOR→EN_REVISION→APROBADO→VIGENTE) | ✅ `tests/test_contratos.py`, `tests/test_planificacion.py` |
 | Módulo 2 — Proveedores/Contratos (RN-12/19) | `models/contratos.py`, `crud/proveedor.py`, `crud/contrato.py` | `/proveedores`, `/contratos` + `/estado` + `/cronograma` + `/productos` | ✅ `tests/test_contratos.py` |
 | Módulo 3 — Compras (RN-01/02/03/09/13/15/16/19) | `models/compras.py` (incl. `AutorizacionExcedente`), `crud/orden_compra.py`, `crud/pedido_semanal.py`, `crud/guia_remision.py` | `/ordenes-compra` + `/estado` + `/detalle/{id}/autorizaciones-excedente`, `/pedidos-semanales`, `/guias-remision` + `/detalle` | ✅ `tests/test_compras.py` |
 | Inspección/Actas (RN-04/05/11, dueño de `guia_remision.estado`) | `models/inspeccion.py`, `crud/inspeccion.py`, `crud/acta_observacion.py` | `/inspecciones`, `/actas-observacion` + `/desde-inspeccion-detalle/{id}` + `/subsanaciones` + `/subsanaciones/{id}/reinspeccion` | ✅ `tests/test_inspeccion.py` |
@@ -379,6 +379,40 @@ MySQL corriendo para testear lógica de negocio.
    construidos aquí. `RequerimientoAnual` sí tiene CRUD completo en el
    backend pero sigue sin pantalla — queda pendiente para la sesión de
    01 Planificación.
+   ~~**Sesión 4 — Módulo 01 Planificación anual**~~ ✅ implementado.
+   Primera sesión full-stack (backend + frontend) — se decidió cerrar los
+   huecos reales de backend detectados en la Sesión 3 antes de construir
+   pantallas, en vez de acotar el frontend a lo que ya existía:
+   - Backend agregado (replica el patrón exacto de `crud/requerimiento.py`):
+     `GET /planificacion/raciones-anuales/{id}` + `PATCH .../estado`
+     (`CRUDRacionAnual`, `TRANSICIONES_VALIDAS_RACION` — dos estados,
+     `BORRADOR→APROBADO`, sin `aprobado_por_id` porque el modelo no tiene
+     esa columna); `GET /planificacion/menus-quincenales` (lista) +
+     `GET .../{id}` (detalle con `dias` anidado) + `PATCH .../estado`
+     (`CRUDMenuQuincenal`, `TRANSICIONES_VALIDAS_MENU` — cinco estados
+     `BORRADOR→EN_REVISION→APROBADO→VIGENTE→HISTORICO`, sí fija
+     `aprobado_por_id`/`aprobado_en`); `GET /catalogos/sedes` y
+     `/catalogos/centros-consumo` (nuevos, `schemas/almacen.py::SedeOut`/
+     `CentroConsumoOut` — sin esto el formulario de `RacionAnual` no podía
+     tener selects reales, hueco encontrado recién al planear el
+     formulario, no en la investigación inicial). Primer testing dedicado
+     de este módulo: `tests/test_planificacion.py` (antes solo se usaba
+     como fixture en otros test_*.py).
+   - Frontend: `/planificacion` (Raciones anuales: list/nuevo/detalle/
+     estado, con selects de Sede→CentroConsumo filtrados dinámicamente en
+     cliente), `/planificacion/menus` (Menús quincenales: list/nuevo/
+     detalle/estado + "agregar día" inline), `/planificacion/dias/[id]`
+     (MenuDia: platos + "agregar plato" inline, dropdown de recetas ya
+     filtrado server-side a `estado=VIGENTE` — RN-22 se cumple por diseño
+     de la UI, no solo por el 422 del backend), `/planificacion/
+     requerimientos` (RequerimientoAnual: list/nuevo con detalle anidado/
+     detalle/estado — primera pantalla para un backend que ya estaba
+     100% completo desde el Módulo 2 pero sin UI). El detalle de un
+     `MenuDia` enlaza a `/dosificacion/calcular?menu_dia_id=X` (Sesión 3)
+     con el id precargado, cerrando el ciclo entre ambas sesiones.
+     Verificado de punta a punta en el navegador: cadena completa de
+     estados de `MenuQuincenal` y `RequerimientoAnual`, cálculo de
+     dosificación disparado desde el día de menú real.
 
 ## 11. Cómo correr el proyecto
 

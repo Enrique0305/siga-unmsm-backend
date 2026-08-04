@@ -13,10 +13,13 @@ from app.schemas.planificacion import (
     MenuDiaDetailOut,
     MenuDiaOut,
     MenuQuincenalCreate,
+    MenuQuincenalDetailOut,
+    MenuQuincenalEstadoUpdate,
     MenuQuincenalOut,
     PlatoCreate,
     PlatoOut,
     RacionAnualCreate,
+    RacionAnualEstadoUpdate,
     RacionAnualOut,
 )
 
@@ -47,7 +50,56 @@ async def crear_racion_anual(
     return racion
 
 
+@router.get("/raciones-anuales/{racion_anual_id}", response_model=RacionAnualOut)
+async def obtener_racion_anual(
+    racion_anual_id: int,
+    db: AsyncSession = Depends(get_db),
+    _current: CurrentUser = Depends(get_current_user),
+) -> RacionAnualOut:
+    racion = await racion_anual_repo.get(db, racion_anual_id)
+    if racion is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ración anual no encontrada")
+    return racion
+
+
+@router.patch("/raciones-anuales/{racion_anual_id}/estado", response_model=RacionAnualOut)
+async def cambiar_estado_racion_anual(
+    racion_anual_id: int,
+    data: RacionAnualEstadoUpdate,
+    db: AsyncSession = Depends(get_db),
+    _current: CurrentUser = Depends(require_roles(*ROLES_EDICION)),
+) -> RacionAnualOut:
+    racion = await racion_anual_repo.get(db, racion_anual_id)
+    if racion is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ración anual no encontrada")
+
+    try:
+        racion_anual_repo.validar_transicion(racion.estado, data.estado)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+
+    racion_anual_repo.aplicar_transicion(racion, data.estado)
+    await db.commit()
+    await db.refresh(racion)
+    return racion
+
+
 # ------------------------------------------------------------ menú quincenal
+@router.get("/menus-quincenales", response_model=Page[MenuQuincenalOut])
+async def listar_menus_quincenales(
+    page: int = 1,
+    page_size: int = 20,
+    racion_anual_id: int | None = None,
+    estado: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    _current: CurrentUser = Depends(get_current_user),
+) -> Page[MenuQuincenalOut]:
+    items, total = await menu_quincenal_repo.list_paginated(
+        db, page=page, page_size=page_size, racion_anual_id=racion_anual_id, estado=estado
+    )
+    return Page(items=items, total=total, page=page, page_size=page_size)
+
+
 @router.post("/menus-quincenales", response_model=MenuQuincenalOut, status_code=status.HTTP_201_CREATED)
 async def crear_menu_quincenal(
     data: MenuQuincenalCreate,
@@ -56,6 +108,51 @@ async def crear_menu_quincenal(
 ) -> MenuQuincenalOut:
     menu = await menu_quincenal_repo.create(db, data.model_dump())
     await db.commit()
+    return menu
+
+
+@router.get("/menus-quincenales/{menu_id}", response_model=MenuQuincenalDetailOut)
+async def obtener_menu_quincenal(
+    menu_id: int,
+    db: AsyncSession = Depends(get_db),
+    _current: CurrentUser = Depends(get_current_user),
+) -> MenuQuincenalDetailOut:
+    menu = await menu_quincenal_repo.get_con_dias(db, menu_id)
+    if menu is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Menú quincenal no encontrado")
+    return MenuQuincenalDetailOut(
+        menu_id=menu.menu_id,
+        racion_anual_id=menu.racion_anual_id,
+        quincena_inicio=menu.quincena_inicio,
+        quincena_fin=menu.quincena_fin,
+        version=menu.version,
+        estado=menu.estado,
+        aprobado_por_id=menu.aprobado_por_id,
+        aprobado_en=menu.aprobado_en,
+        creado_en=menu.creado_en,
+        dias=list(menu.dias),
+    )
+
+
+@router.patch("/menus-quincenales/{menu_id}/estado", response_model=MenuQuincenalOut)
+async def cambiar_estado_menu_quincenal(
+    menu_id: int,
+    data: MenuQuincenalEstadoUpdate,
+    db: AsyncSession = Depends(get_db),
+    current: CurrentUser = Depends(require_roles(*ROLES_EDICION, "LOGISTICA_CENTRAL")),
+) -> MenuQuincenalOut:
+    menu = await menu_quincenal_repo.get(db, menu_id)
+    if menu is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Menú quincenal no encontrado")
+
+    try:
+        menu_quincenal_repo.validar_transicion(menu.estado, data.estado)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+
+    menu_quincenal_repo.aplicar_transicion(menu, data.estado, aprobado_por_id=current.usuario_id)
+    await db.commit()
+    await db.refresh(menu)
     return menu
 
 

@@ -6,14 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface MenuQuincenalOut {
-  menu_id: number;
-  racion_anual_id: number;
-  quincena_inicio: string;
-  quincena_fin: string;
-  version: number;
-  estado: string;
-  aprobado_por_id: number | null;
-  aprobado_en: string | null;
-  creado_en: string;
-}
+export type ListarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGetParams = {
+page?: number;
+page_size?: number;
+racion_anual_id?: number | null;
+estado?: string | null;
+};

@@ -24,6 +24,10 @@ class RacionAnualOut(BaseModel):
     creado_en: datetime
 
 
+class RacionAnualEstadoUpdate(BaseModel):
+    estado: str = Field(description="APROBADO")
+
+
 class MenuQuincenalCreate(BaseModel):
     racion_anual_id: int
     quincena_inicio: date
@@ -39,7 +43,13 @@ class MenuQuincenalOut(BaseModel):
     quincena_fin: date
     version: int
     estado: str
+    aprobado_por_id: int | None
+    aprobado_en: datetime | None
     creado_en: datetime
+
+
+class MenuQuincenalEstadoUpdate(BaseModel):
+    estado: str = Field(description="EN_REVISION | APROBADO | VIGENTE | HISTORICO | BORRADOR")
 
 
 class MenuDiaCreate(BaseModel):
@@ -85,3 +95,7 @@ class PlatoOut(BaseModel):
 
 class MenuDiaDetailOut(MenuDiaOut):
     platos: list[PlatoOut]
+
+
+class MenuQuincenalDetailOut(MenuQuincenalOut):
+    dias: list[MenuDiaOut]

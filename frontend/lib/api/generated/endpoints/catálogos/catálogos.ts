@@ -22,7 +22,11 @@ import type {
 
 import type {
   CategoriaAlimentoOut,
-  ListarUnidadesMedidaApiV1CatalogosUnidadesMedidaGet200Item
+  CentroConsumoOut,
+  HTTPValidationError,
+  ListarCentrosConsumoApiV1CatalogosCentrosConsumoGetParams,
+  ListarUnidadesMedidaApiV1CatalogosUnidadesMedidaGet200Item,
+  SedeOut
 } from '../../model';
 
 import { apiFetch } from '../../../mutator';
@@ -260,6 +264,244 @@ export function useListarUnidadesMedidaApiV1CatalogosUnidadesMedidaGet<TData = A
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getListarUnidadesMedidaApiV1CatalogosUnidadesMedidaGetQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export type listarSedesApiV1CatalogosSedesGetResponse200 = {
+  data: SedeOut[]
+  status: 200
+}
+
+export type listarSedesApiV1CatalogosSedesGetResponseSuccess = (listarSedesApiV1CatalogosSedesGetResponse200) & {
+  headers: Headers;
+};
+;
+
+export type listarSedesApiV1CatalogosSedesGetResponse = (listarSedesApiV1CatalogosSedesGetResponseSuccess)
+
+export const getListarSedesApiV1CatalogosSedesGetUrl = () => {
+
+
+
+
+  return `/api/v1/catalogos/sedes`
+}
+
+/**
+ * @summary Listar Sedes
+ */
+export const listarSedesApiV1CatalogosSedesGet = async ( options?: Parameters<typeof apiFetch>[1]): Promise<listarSedesApiV1CatalogosSedesGetResponse> => {
+
+  return apiFetch<listarSedesApiV1CatalogosSedesGetResponse>(getListarSedesApiV1CatalogosSedesGetUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListarSedesApiV1CatalogosSedesGetQueryKey = () => {
+    return [
+    `/api/v1/catalogos/sedes`
+    ] as const;
+    }
+
+
+export const getListarSedesApiV1CatalogosSedesGetQueryOptions = <TData = Awaited<ReturnType<typeof listarSedesApiV1CatalogosSedesGet>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listarSedesApiV1CatalogosSedesGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListarSedesApiV1CatalogosSedesGetQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listarSedesApiV1CatalogosSedesGet>>> = ({ signal }) => listarSedesApiV1CatalogosSedesGet({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listarSedesApiV1CatalogosSedesGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListarSedesApiV1CatalogosSedesGetQueryResult = NonNullable<Awaited<ReturnType<typeof listarSedesApiV1CatalogosSedesGet>>>
+export type ListarSedesApiV1CatalogosSedesGetQueryError = unknown
+
+
+export function useListarSedesApiV1CatalogosSedesGet<TData = Awaited<ReturnType<typeof listarSedesApiV1CatalogosSedesGet>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listarSedesApiV1CatalogosSedesGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listarSedesApiV1CatalogosSedesGet>>,
+          TError,
+          Awaited<ReturnType<typeof listarSedesApiV1CatalogosSedesGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListarSedesApiV1CatalogosSedesGet<TData = Awaited<ReturnType<typeof listarSedesApiV1CatalogosSedesGet>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listarSedesApiV1CatalogosSedesGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listarSedesApiV1CatalogosSedesGet>>,
+          TError,
+          Awaited<ReturnType<typeof listarSedesApiV1CatalogosSedesGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListarSedesApiV1CatalogosSedesGet<TData = Awaited<ReturnType<typeof listarSedesApiV1CatalogosSedesGet>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listarSedesApiV1CatalogosSedesGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Listar Sedes
+ */
+
+export function useListarSedesApiV1CatalogosSedesGet<TData = Awaited<ReturnType<typeof listarSedesApiV1CatalogosSedesGet>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listarSedesApiV1CatalogosSedesGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListarSedesApiV1CatalogosSedesGetQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export type listarCentrosConsumoApiV1CatalogosCentrosConsumoGetResponse200 = {
+  data: CentroConsumoOut[]
+  status: 200
+}
+
+export type listarCentrosConsumoApiV1CatalogosCentrosConsumoGetResponse422 = {
+  data: HTTPValidationError
+  status: 422
+}
+
+export type listarCentrosConsumoApiV1CatalogosCentrosConsumoGetResponseSuccess = (listarCentrosConsumoApiV1CatalogosCentrosConsumoGetResponse200) & {
+  headers: Headers;
+};
+export type listarCentrosConsumoApiV1CatalogosCentrosConsumoGetResponseError = (listarCentrosConsumoApiV1CatalogosCentrosConsumoGetResponse422) & {
+  headers: Headers;
+};
+
+export type listarCentrosConsumoApiV1CatalogosCentrosConsumoGetResponse = (listarCentrosConsumoApiV1CatalogosCentrosConsumoGetResponseSuccess | listarCentrosConsumoApiV1CatalogosCentrosConsumoGetResponseError)
+
+export const getListarCentrosConsumoApiV1CatalogosCentrosConsumoGetUrl = (params?: ListarCentrosConsumoApiV1CatalogosCentrosConsumoGetParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/catalogos/centros-consumo?${stringifiedParams}` : `/api/v1/catalogos/centros-consumo`
+}
+
+/**
+ * @summary Listar Centros Consumo
+ */
+export const listarCentrosConsumoApiV1CatalogosCentrosConsumoGet = async (params?: ListarCentrosConsumoApiV1CatalogosCentrosConsumoGetParams, options?: Parameters<typeof apiFetch>[1]): Promise<listarCentrosConsumoApiV1CatalogosCentrosConsumoGetResponse> => {
+
+  return apiFetch<listarCentrosConsumoApiV1CatalogosCentrosConsumoGetResponse>(getListarCentrosConsumoApiV1CatalogosCentrosConsumoGetUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListarCentrosConsumoApiV1CatalogosCentrosConsumoGetQueryKey = (params?: ListarCentrosConsumoApiV1CatalogosCentrosConsumoGetParams,) => {
+    return [
+    `/api/v1/catalogos/centros-consumo`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListarCentrosConsumoApiV1CatalogosCentrosConsumoGetQueryOptions = <TData = Awaited<ReturnType<typeof listarCentrosConsumoApiV1CatalogosCentrosConsumoGet>>, TError = HTTPValidationError>(params?: ListarCentrosConsumoApiV1CatalogosCentrosConsumoGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listarCentrosConsumoApiV1CatalogosCentrosConsumoGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListarCentrosConsumoApiV1CatalogosCentrosConsumoGetQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listarCentrosConsumoApiV1CatalogosCentrosConsumoGet>>> = ({ signal }) => listarCentrosConsumoApiV1CatalogosCentrosConsumoGet(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listarCentrosConsumoApiV1CatalogosCentrosConsumoGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListarCentrosConsumoApiV1CatalogosCentrosConsumoGetQueryResult = NonNullable<Awaited<ReturnType<typeof listarCentrosConsumoApiV1CatalogosCentrosConsumoGet>>>
+export type ListarCentrosConsumoApiV1CatalogosCentrosConsumoGetQueryError = HTTPValidationError
+
+
+export function useListarCentrosConsumoApiV1CatalogosCentrosConsumoGet<TData = Awaited<ReturnType<typeof listarCentrosConsumoApiV1CatalogosCentrosConsumoGet>>, TError = HTTPValidationError>(
+ params: undefined |  ListarCentrosConsumoApiV1CatalogosCentrosConsumoGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listarCentrosConsumoApiV1CatalogosCentrosConsumoGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listarCentrosConsumoApiV1CatalogosCentrosConsumoGet>>,
+          TError,
+          Awaited<ReturnType<typeof listarCentrosConsumoApiV1CatalogosCentrosConsumoGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListarCentrosConsumoApiV1CatalogosCentrosConsumoGet<TData = Awaited<ReturnType<typeof listarCentrosConsumoApiV1CatalogosCentrosConsumoGet>>, TError = HTTPValidationError>(
+ params?: ListarCentrosConsumoApiV1CatalogosCentrosConsumoGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listarCentrosConsumoApiV1CatalogosCentrosConsumoGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listarCentrosConsumoApiV1CatalogosCentrosConsumoGet>>,
+          TError,
+          Awaited<ReturnType<typeof listarCentrosConsumoApiV1CatalogosCentrosConsumoGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListarCentrosConsumoApiV1CatalogosCentrosConsumoGet<TData = Awaited<ReturnType<typeof listarCentrosConsumoApiV1CatalogosCentrosConsumoGet>>, TError = HTTPValidationError>(
+ params?: ListarCentrosConsumoApiV1CatalogosCentrosConsumoGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listarCentrosConsumoApiV1CatalogosCentrosConsumoGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Listar Centros Consumo
+ */
+
+export function useListarCentrosConsumoApiV1CatalogosCentrosConsumoGet<TData = Awaited<ReturnType<typeof listarCentrosConsumoApiV1CatalogosCentrosConsumoGet>>, TError = HTTPValidationError>(
+ params?: ListarCentrosConsumoApiV1CatalogosCentrosConsumoGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listarCentrosConsumoApiV1CatalogosCentrosConsumoGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListarCentrosConsumoApiV1CatalogosCentrosConsumoGetQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

@@ -5,8 +5,9 @@
  * API del Sistema Integral de Gestión de Almacén y Abastecimiento Alimentario — UNMSM. Módulos activos: Autenticación, Usuarios, Almacenes, Catálogo Nutricional.
  * OpenAPI spec version: 0.1.0
  */
+import type { MenuDiaOut } from './menuDiaOut';
 
-export interface MenuQuincenalOut {
+export interface MenuQuincenalDetailOut {
   menu_id: number;
   racion_anual_id: number;
   quincena_inicio: string;
@@ -16,4 +17,5 @@ export interface MenuQuincenalOut {
   aprobado_por_id: number | null;
   aprobado_en: string | null;
   creado_en: string;
+  dias: MenuDiaOut[];
 }

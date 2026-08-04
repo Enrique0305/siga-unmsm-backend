@@ -28,16 +28,21 @@ import type {
   CalcularDosificacionApiV1PlanificacionDiasMenuDiaIdDosificacionPostParams,
   DosificacionDetalleOut,
   HTTPValidationError,
+  ListarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGetParams,
   ListarRacionesAnualesApiV1PlanificacionRacionesAnualesGetParams,
   MenuDiaCreate,
   MenuDiaDetailOut,
   MenuDiaOut,
   MenuQuincenalCreate,
+  MenuQuincenalDetailOut,
+  MenuQuincenalEstadoUpdate,
   MenuQuincenalOut,
+  PageMenuQuincenalOut,
   PageRacionAnualOut,
   PlatoCreate,
   PlatoOut,
   RacionAnualCreate,
+  RacionAnualEstadoUpdate,
   RacionAnualOut
 } from '../../model';
 
@@ -278,7 +283,342 @@ export const useCrearRacionAnualApiV1PlanificacionRacionesAnualesPost = <TError 
       > => {
       return useMutation(getCrearRacionAnualApiV1PlanificacionRacionesAnualesPostMutationOptions(options), queryClient);
     }
-    export type crearMenuQuincenalApiV1PlanificacionMenusQuincenalesPostResponse201 = {
+    export type obtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGetResponse200 = {
+  data: RacionAnualOut
+  status: 200
+}
+
+export type obtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGetResponse422 = {
+  data: HTTPValidationError
+  status: 422
+}
+
+export type obtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGetResponseSuccess = (obtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGetResponse200) & {
+  headers: Headers;
+};
+export type obtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGetResponseError = (obtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGetResponse422) & {
+  headers: Headers;
+};
+
+export type obtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGetResponse = (obtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGetResponseSuccess | obtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGetResponseError)
+
+export const getObtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGetUrl = (racionAnualId: number,) => {
+
+
+
+
+  return `/api/v1/planificacion/raciones-anuales/${racionAnualId}`
+}
+
+/**
+ * @summary Obtener Racion Anual
+ */
+export const obtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGet = async (racionAnualId: number, options?: Parameters<typeof apiFetch>[1]): Promise<obtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGetResponse> => {
+
+  return apiFetch<obtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGetResponse>(getObtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGetUrl(racionAnualId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getObtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGetQueryKey = (racionAnualId: number,) => {
+    return [
+    `/api/v1/planificacion/raciones-anuales/${racionAnualId}`
+    ] as const;
+    }
+
+
+export const getObtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGetQueryOptions = <TData = Awaited<ReturnType<typeof obtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGet>>, TError = HTTPValidationError>(racionAnualId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof obtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getObtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGetQueryKey(racionAnualId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof obtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGet>>> = ({ signal }) => obtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGet(racionAnualId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: racionAnualId !== null && racionAnualId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof obtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ObtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGetQueryResult = NonNullable<Awaited<ReturnType<typeof obtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGet>>>
+export type ObtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGetQueryError = HTTPValidationError
+
+
+export function useObtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGet<TData = Awaited<ReturnType<typeof obtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGet>>, TError = HTTPValidationError>(
+ racionAnualId: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof obtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof obtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGet>>,
+          TError,
+          Awaited<ReturnType<typeof obtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useObtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGet<TData = Awaited<ReturnType<typeof obtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGet>>, TError = HTTPValidationError>(
+ racionAnualId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof obtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof obtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGet>>,
+          TError,
+          Awaited<ReturnType<typeof obtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useObtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGet<TData = Awaited<ReturnType<typeof obtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGet>>, TError = HTTPValidationError>(
+ racionAnualId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof obtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Obtener Racion Anual
+ */
+
+export function useObtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGet<TData = Awaited<ReturnType<typeof obtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGet>>, TError = HTTPValidationError>(
+ racionAnualId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof obtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getObtenerRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdGetQueryOptions(racionAnualId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export type cambiarEstadoRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdEstadoPatchResponse200 = {
+  data: RacionAnualOut
+  status: 200
+}
+
+export type cambiarEstadoRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdEstadoPatchResponse422 = {
+  data: HTTPValidationError
+  status: 422
+}
+
+export type cambiarEstadoRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdEstadoPatchResponseSuccess = (cambiarEstadoRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdEstadoPatchResponse200) & {
+  headers: Headers;
+};
+export type cambiarEstadoRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdEstadoPatchResponseError = (cambiarEstadoRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdEstadoPatchResponse422) & {
+  headers: Headers;
+};
+
+export type cambiarEstadoRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdEstadoPatchResponse = (cambiarEstadoRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdEstadoPatchResponseSuccess | cambiarEstadoRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdEstadoPatchResponseError)
+
+export const getCambiarEstadoRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdEstadoPatchUrl = (racionAnualId: number,) => {
+
+
+
+
+  return `/api/v1/planificacion/raciones-anuales/${racionAnualId}/estado`
+}
+
+/**
+ * @summary Cambiar Estado Racion Anual
+ */
+export const cambiarEstadoRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdEstadoPatch = async (racionAnualId: number,
+    racionAnualEstadoUpdate: RacionAnualEstadoUpdate, options?: Parameters<typeof apiFetch>[1]): Promise<cambiarEstadoRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdEstadoPatchResponse> => {
+
+  return apiFetch<cambiarEstadoRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdEstadoPatchResponse>(getCambiarEstadoRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdEstadoPatchUrl(racionAnualId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(racionAnualEstadoUpdate)
+  }
+);}
+
+
+
+
+
+export const getCambiarEstadoRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdEstadoPatchMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cambiarEstadoRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdEstadoPatch>>, TError,{racionAnualId: number;data: RacionAnualEstadoUpdate}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cambiarEstadoRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdEstadoPatch>>, TError,{racionAnualId: number;data: RacionAnualEstadoUpdate}, TContext> => {
+
+const mutationKey = ['cambiarEstadoRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdEstadoPatch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cambiarEstadoRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdEstadoPatch>>, {racionAnualId: number;data: RacionAnualEstadoUpdate}> = (props) => {
+          const {racionAnualId,data} = props ?? {};
+
+          return  cambiarEstadoRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdEstadoPatch(racionAnualId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CambiarEstadoRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdEstadoPatchMutationResult = NonNullable<Awaited<ReturnType<typeof cambiarEstadoRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdEstadoPatch>>>
+    export type CambiarEstadoRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdEstadoPatchMutationBody = RacionAnualEstadoUpdate
+    export type CambiarEstadoRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdEstadoPatchMutationError = HTTPValidationError
+
+    /**
+ * @summary Cambiar Estado Racion Anual
+ */
+export const useCambiarEstadoRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdEstadoPatch = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cambiarEstadoRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdEstadoPatch>>, TError,{racionAnualId: number;data: RacionAnualEstadoUpdate}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof cambiarEstadoRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdEstadoPatch>>,
+        TError,
+        {racionAnualId: number;data: RacionAnualEstadoUpdate},
+        TContext
+      > => {
+      return useMutation(getCambiarEstadoRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdEstadoPatchMutationOptions(options), queryClient);
+    }
+    export type listarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGetResponse200 = {
+  data: PageMenuQuincenalOut
+  status: 200
+}
+
+export type listarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGetResponse422 = {
+  data: HTTPValidationError
+  status: 422
+}
+
+export type listarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGetResponseSuccess = (listarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGetResponse200) & {
+  headers: Headers;
+};
+export type listarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGetResponseError = (listarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGetResponse422) & {
+  headers: Headers;
+};
+
+export type listarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGetResponse = (listarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGetResponseSuccess | listarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGetResponseError)
+
+export const getListarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGetUrl = (params?: ListarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGetParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/planificacion/menus-quincenales?${stringifiedParams}` : `/api/v1/planificacion/menus-quincenales`
+}
+
+/**
+ * @summary Listar Menus Quincenales
+ */
+export const listarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGet = async (params?: ListarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGetParams, options?: Parameters<typeof apiFetch>[1]): Promise<listarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGetResponse> => {
+
+  return apiFetch<listarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGetResponse>(getListarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGetUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGetQueryKey = (params?: ListarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGetParams,) => {
+    return [
+    `/api/v1/planificacion/menus-quincenales`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGetQueryOptions = <TData = Awaited<ReturnType<typeof listarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGet>>, TError = HTTPValidationError>(params?: ListarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGetQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGet>>> = ({ signal }) => listarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGet(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGetQueryResult = NonNullable<Awaited<ReturnType<typeof listarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGet>>>
+export type ListarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGetQueryError = HTTPValidationError
+
+
+export function useListarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGet<TData = Awaited<ReturnType<typeof listarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGet>>, TError = HTTPValidationError>(
+ params: undefined |  ListarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGet>>,
+          TError,
+          Awaited<ReturnType<typeof listarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGet<TData = Awaited<ReturnType<typeof listarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGet>>, TError = HTTPValidationError>(
+ params?: ListarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGet>>,
+          TError,
+          Awaited<ReturnType<typeof listarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGet<TData = Awaited<ReturnType<typeof listarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGet>>, TError = HTTPValidationError>(
+ params?: ListarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Listar Menus Quincenales
+ */
+
+export function useListarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGet<TData = Awaited<ReturnType<typeof listarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGet>>, TError = HTTPValidationError>(
+ params?: ListarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGetQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export type crearMenuQuincenalApiV1PlanificacionMenusQuincenalesPostResponse201 = {
   data: MenuQuincenalOut
   status: 201
 }
@@ -366,6 +706,215 @@ export const useCrearMenuQuincenalApiV1PlanificacionMenusQuincenalesPost = <TErr
         TContext
       > => {
       return useMutation(getCrearMenuQuincenalApiV1PlanificacionMenusQuincenalesPostMutationOptions(options), queryClient);
+    }
+    export type obtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGetResponse200 = {
+  data: MenuQuincenalDetailOut
+  status: 200
+}
+
+export type obtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGetResponse422 = {
+  data: HTTPValidationError
+  status: 422
+}
+
+export type obtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGetResponseSuccess = (obtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGetResponse200) & {
+  headers: Headers;
+};
+export type obtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGetResponseError = (obtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGetResponse422) & {
+  headers: Headers;
+};
+
+export type obtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGetResponse = (obtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGetResponseSuccess | obtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGetResponseError)
+
+export const getObtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGetUrl = (menuId: number,) => {
+
+
+
+
+  return `/api/v1/planificacion/menus-quincenales/${menuId}`
+}
+
+/**
+ * @summary Obtener Menu Quincenal
+ */
+export const obtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGet = async (menuId: number, options?: Parameters<typeof apiFetch>[1]): Promise<obtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGetResponse> => {
+
+  return apiFetch<obtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGetResponse>(getObtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGetUrl(menuId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getObtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGetQueryKey = (menuId: number,) => {
+    return [
+    `/api/v1/planificacion/menus-quincenales/${menuId}`
+    ] as const;
+    }
+
+
+export const getObtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGetQueryOptions = <TData = Awaited<ReturnType<typeof obtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGet>>, TError = HTTPValidationError>(menuId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof obtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getObtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGetQueryKey(menuId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof obtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGet>>> = ({ signal }) => obtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGet(menuId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: menuId !== null && menuId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof obtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ObtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGetQueryResult = NonNullable<Awaited<ReturnType<typeof obtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGet>>>
+export type ObtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGetQueryError = HTTPValidationError
+
+
+export function useObtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGet<TData = Awaited<ReturnType<typeof obtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGet>>, TError = HTTPValidationError>(
+ menuId: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof obtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof obtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGet>>,
+          TError,
+          Awaited<ReturnType<typeof obtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useObtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGet<TData = Awaited<ReturnType<typeof obtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGet>>, TError = HTTPValidationError>(
+ menuId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof obtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof obtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGet>>,
+          TError,
+          Awaited<ReturnType<typeof obtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useObtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGet<TData = Awaited<ReturnType<typeof obtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGet>>, TError = HTTPValidationError>(
+ menuId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof obtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Obtener Menu Quincenal
+ */
+
+export function useObtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGet<TData = Awaited<ReturnType<typeof obtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGet>>, TError = HTTPValidationError>(
+ menuId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof obtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getObtenerMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdGetQueryOptions(menuId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export type cambiarEstadoMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdEstadoPatchResponse200 = {
+  data: MenuQuincenalOut
+  status: 200
+}
+
+export type cambiarEstadoMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdEstadoPatchResponse422 = {
+  data: HTTPValidationError
+  status: 422
+}
+
+export type cambiarEstadoMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdEstadoPatchResponseSuccess = (cambiarEstadoMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdEstadoPatchResponse200) & {
+  headers: Headers;
+};
+export type cambiarEstadoMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdEstadoPatchResponseError = (cambiarEstadoMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdEstadoPatchResponse422) & {
+  headers: Headers;
+};
+
+export type cambiarEstadoMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdEstadoPatchResponse = (cambiarEstadoMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdEstadoPatchResponseSuccess | cambiarEstadoMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdEstadoPatchResponseError)
+
+export const getCambiarEstadoMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdEstadoPatchUrl = (menuId: number,) => {
+
+
+
+
+  return `/api/v1/planificacion/menus-quincenales/${menuId}/estado`
+}
+
+/**
+ * @summary Cambiar Estado Menu Quincenal
+ */
+export const cambiarEstadoMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdEstadoPatch = async (menuId: number,
+    menuQuincenalEstadoUpdate: MenuQuincenalEstadoUpdate, options?: Parameters<typeof apiFetch>[1]): Promise<cambiarEstadoMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdEstadoPatchResponse> => {
+
+  return apiFetch<cambiarEstadoMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdEstadoPatchResponse>(getCambiarEstadoMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdEstadoPatchUrl(menuId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(menuQuincenalEstadoUpdate)
+  }
+);}
+
+
+
+
+
+export const getCambiarEstadoMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdEstadoPatchMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cambiarEstadoMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdEstadoPatch>>, TError,{menuId: number;data: MenuQuincenalEstadoUpdate}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cambiarEstadoMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdEstadoPatch>>, TError,{menuId: number;data: MenuQuincenalEstadoUpdate}, TContext> => {
+
+const mutationKey = ['cambiarEstadoMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdEstadoPatch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cambiarEstadoMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdEstadoPatch>>, {menuId: number;data: MenuQuincenalEstadoUpdate}> = (props) => {
+          const {menuId,data} = props ?? {};
+
+          return  cambiarEstadoMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdEstadoPatch(menuId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CambiarEstadoMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdEstadoPatchMutationResult = NonNullable<Awaited<ReturnType<typeof cambiarEstadoMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdEstadoPatch>>>
+    export type CambiarEstadoMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdEstadoPatchMutationBody = MenuQuincenalEstadoUpdate
+    export type CambiarEstadoMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdEstadoPatchMutationError = HTTPValidationError
+
+    /**
+ * @summary Cambiar Estado Menu Quincenal
+ */
+export const useCambiarEstadoMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdEstadoPatch = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cambiarEstadoMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdEstadoPatch>>, TError,{menuId: number;data: MenuQuincenalEstadoUpdate}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof cambiarEstadoMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdEstadoPatch>>,
+        TError,
+        {menuId: number;data: MenuQuincenalEstadoUpdate},
+        TContext
+      > => {
+      return useMutation(getCambiarEstadoMenuQuincenalApiV1PlanificacionMenusQuincenalesMenuIdEstadoPatchMutationOptions(options), queryClient);
     }
     export type listarDiasMenuApiV1PlanificacionMenusQuincenalesMenuIdDiasGetResponse200 = {
   data: MenuDiaOut[]
