@@ -352,6 +352,33 @@ MySQL corriendo para testear lógica de negocio.
    escritura real (formularios `orval` + `useMutation`, filtros/paginación
    por searchParam, badges de estado) para replicar en las ~20 pantallas
    restantes del catálogo de la sección 3 del diseño.
+   ~~**Sesión 3 — Módulo 01A Dosificación nutricional**~~ ✅ implementado
+   (`/dosificacion` + `/dosificacion/nuevo` + `/dosificacion/[id]`:
+   catálogo nutricional con los 21 campos de `ValorNutricional`;
+   `/dosificacion/recetas` + `/dosificacion/recetas/nuevo` +
+   `/dosificacion/recetas/[id]`: recetas con ingredientes anidados,
+   máquina de estados, "nueva versión" y "recalcular nutrición";
+   `/dosificacion/calcular`: botón de cálculo de dosificación (RN-24),
+   sin pantalla de menús propia — pide `menu_dia_id`/`centro_consumo_id`
+   directo por número porque el Módulo 01 de Planificación no existe
+   todavía). Primera sesión donde **Receta y Alimento no tienen
+   "editar"** — RN-25 los hace inmutables por diseño, solo versionado
+   (`POST .../versiones`), así que no hay pantallas de edición de campos
+   base, solo de corrección vía nueva versión. Verificado en el
+   navegador: alimento creado → corregido (v1 queda `vigente=false`,
+   v2 vigente) → receta creada con ese alimento (nutrición calculada
+   automáticamente al crear) → máquina de estados completa
+   `BORRADOR→EN_REVISION→APROBADO→VIGENTE` → "nueva versión" clona a un
+   `receta_id` distinto en BORRADOR sin tocar el original → error 422 de
+   "Centro de consumo no encontrado" en el cálculo de dosificación se
+   muestra legible. Backend investigado a fondo antes de planear (3
+   agentes en paralelo) porque 01 Planificación (RacionAnual/
+   MenuQuincenal/Plato) tiene huecos reales — sin `GET` de detalle para
+   `RacionAnual`, sin `GET` de lista/detalle ni cambio de estado para
+   `MenuQuincenal` — documentados para cuando se retome esa sesión, no
+   construidos aquí. `RequerimientoAnual` sí tiene CRUD completo en el
+   backend pero sigue sin pantalla — queda pendiente para la sesión de
+   01 Planificación.
 
 ## 11. Cómo correr el proyecto
 
