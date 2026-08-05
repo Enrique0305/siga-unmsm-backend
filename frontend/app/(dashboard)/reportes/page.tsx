@@ -1,6 +1,7 @@
 import { SelectFilter } from "@/components/ui/SelectFilter";
 import { serverFetch } from "@/lib/api/server-fetch";
 import type { PageAlmacenOut } from "@/lib/api/generated/model/pageAlmacenOut";
+import type { SedeOut } from "@/lib/api/generated/model/sedeOut";
 import type { ValorizacionAlmacenOut } from "@/lib/api/generated/model/valorizacionAlmacenOut";
 
 export default async function ReportesPage({
@@ -8,12 +9,16 @@ export default async function ReportesPage({
 }: PageProps<"/reportes">) {
   const params = await searchParams;
   const almacenId = typeof params.almacen_id === "string" ? params.almacen_id : "";
+  const sedeId = typeof params.sede_id === "string" ? params.sede_id : "";
 
-  const [almacenes, valorizacion] = await Promise.all([
+  const query = new URLSearchParams();
+  if (almacenId) query.set("almacen_id", almacenId);
+  if (sedeId) query.set("sede_id", sedeId);
+
+  const [almacenes, sedes, valorizacion] = await Promise.all([
     serverFetch<PageAlmacenOut>("/almacenes?page_size=100"),
-    serverFetch<ValorizacionAlmacenOut[]>(
-      `/reportes/valorizacion-inventario${almacenId ? `?almacen_id=${almacenId}` : ""}`,
-    ),
+    serverFetch<SedeOut[]>("/catalogos/sedes"),
+    serverFetch<ValorizacionAlmacenOut[]>(`/reportes/valorizacion-inventario?${query.toString()}`),
   ]);
 
   const total = valorizacion.reduce((sum, fila) => sum + fila.valor_valorizado_total, 0);
@@ -29,6 +34,17 @@ export default async function ReportesPage({
             ...almacenes.items.map((almacen) => ({
               value: String(almacen.almacen_id),
               label: almacen.codigo,
+            })),
+          ]}
+        />
+        <SelectFilter
+          paramName="sede_id"
+          label="Sede"
+          options={[
+            { value: "", label: "Todas" },
+            ...sedes.map((sede) => ({
+              value: String(sede.sede_id),
+              label: sede.nombre,
             })),
           ]}
         />

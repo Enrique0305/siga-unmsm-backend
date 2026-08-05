@@ -2,6 +2,7 @@ import { SelectFilter } from "@/components/ui/SelectFilter";
 import { serverFetch } from "@/lib/api/server-fetch";
 import type { AlertasAlmacenOut } from "@/lib/api/generated/model/alertasAlmacenOut";
 import type { PageAlmacenOut } from "@/lib/api/generated/model/pageAlmacenOut";
+import type { PageProductoOut } from "@/lib/api/generated/model/pageProductoOut";
 
 export default async function AlertasPage({
   searchParams,
@@ -9,13 +10,16 @@ export default async function AlertasPage({
   const params = await searchParams;
   const almacenId = typeof params.almacen_id === "string" ? params.almacen_id : "";
   const diasVencimiento = typeof params.dias_vencimiento === "string" ? params.dias_vencimiento : "";
+  const productoId = typeof params.producto_id === "string" ? params.producto_id : "";
 
   const query = new URLSearchParams();
   if (almacenId) query.set("almacen_id", almacenId);
   if (diasVencimiento) query.set("dias_vencimiento", diasVencimiento);
+  if (productoId) query.set("producto_id", productoId);
 
-  const [almacenes, alertas] = await Promise.all([
+  const [almacenes, productos, alertas] = await Promise.all([
     serverFetch<PageAlmacenOut>("/almacenes?page_size=100"),
+    serverFetch<PageProductoOut>("/productos?page_size=100"),
     serverFetch<AlertasAlmacenOut>(`/reportes/alertas?${query.toString()}`),
   ]);
 
@@ -42,6 +46,17 @@ export default async function AlertasPage({
             { value: "15", label: "15 días" },
             { value: "30", label: "30 días" },
             { value: "60", label: "60 días" },
+          ]}
+        />
+        <SelectFilter
+          paramName="producto_id"
+          label="Producto"
+          options={[
+            { value: "", label: "Todos" },
+            ...productos.items.map((producto) => ({
+              value: String(producto.producto_id),
+              label: `${producto.codigo} — ${producto.nombre}`,
+            })),
           ]}
         />
       </div>
