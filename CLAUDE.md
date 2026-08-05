@@ -1182,6 +1182,9 @@ MySQL corriendo para testear lógica de negocio.
    `dias_vencimiento` (un query param FastAPI plano, sin ese problema) y
    dejar los otros dos como límite explícito — mismo criterio que
    `ActaObservacion.plazo_vencido` (RN-11), idéntico patrón de `@property`.
+   **`alerta_vigencia`/`alerta_saldo` cerrados en la Sesión 19;
+   `plazo_vencido` se investigó ahí mismo y se descartó — no comparte el
+   mismo patrón, no hay número hardcodeado que extraer (ver esa sesión).**
    **Esquema**: tabla nueva `parametro_sistema` (`clave` VARCHAR(60) PK,
    `valor` VARCHAR(255), `descripcion` opcional, `actualizado_en`
    DATETIME con `onupdate=func.now()` solo a nivel ORM — mismo patrón que
@@ -1250,6 +1253,79 @@ MySQL corriendo para testear lógica de negocio.
    sin tocarlo) → la tabla vuelve a "No hay parámetros configurados". `npx
    tsc --noEmit` + `npx eslint .` + `npx next build` limpios (60 rutas,
    incluida `/administracion/parametros`).
+   ~~**Sesión 19 — Conectar alerta_vigencia y alerta_saldo a
+   parametro_sistema**~~ ✅ implementado. Backend-only, sin cambios de
+   frontend ni de esquema (la forma JSON de las respuestas no cambia,
+   solo cómo se calculan en el servidor — y `/administracion/parametros`,
+   Sesión 18, ya es un formulario clave/valor genérico que soporta
+   cualquier clave nueva sin tocar código). Cierra el límite consciente
+   documentado en la Sesión 18 para dos de los tres campos agrupados ahí:
+   `Contrato.alerta_vigencia` (RN-12, 30 días) y `ProductoContratado.
+   alerta_saldo` (RN-12, 15%).
+   **`ActaObservacion.plazo_vencido` (RN-11) se investigó primero y se
+   descartó de esta sesión** (confirmado con el usuario antes de
+   planear): a diferencia de los otros dos, no compara contra ningún
+   número hardcodeado — solo `date.today() > self.plazo_subsanacion`, y
+   `plazo_subsanacion` ya es un campo que el inspector fija libremente
+   por acta al crearla (`ActaObservacionCreate.plazo_subsanacion`, RN-11).
+   No hay ninguna constante "N días" que extraer a `parametro_sistema`;
+   convertirlo en configurable habría exigido inventar un concepto de
+   negocio nuevo (una ventana de gracia sobre un plazo que ya es
+   configurable por acta) en vez de simplemente exponer un umbral
+   existente — fuera del alcance de esta sesión, documentado como límite
+   diferenciado del de la Sesión 18, no como trabajo pendiente.
+   **Modelos** (`models/contratos.py`): los `@property alerta_vigencia`/
+   `alerta_saldo` pasan a ser métodos `calcular_alerta_vigencia(self,
+   umbral_dias: int = 30)`/`calcular_alerta_saldo(self, umbral_pct: int =
+   15)` (mismo cuerpo, umbral parametrizado en vez de literal; default
+   igual al valor hardcodeado original para no romper los asserts de
+   `test_contratos.py` que no configuran nada). Confirmado con grep sobre
+   todo `app/` que ningún otro archivo accedía a estos dos como atributo
+   fuera de `models/contratos.py`/`schemas/contrato.py` — seguro
+   convertirlos a método sin romper otros call sites.
+   **Schemas** (`schemas/contrato.py`): `ContratoOut` gana su primer
+   `from_model(cls, obj, umbral_alerta_vigencia)` explícito (antes era el
+   único de los tres campos que dependía 100% de conversión implícita
+   `from_attributes=True`, ni siquiera indirectamente vía otro
+   `from_model`); `ContratoListOut.from_model` pasa a llamar
+   `ContratoOut.from_model(obj, umbral)` en vez de
+   `ContratoOut.model_validate(obj)`; `ProductoContratadoOut.from_model`
+   (ya existía desde el Módulo 2) gana el parámetro `umbral_alerta_saldo`.
+   **Endpoints** (`api/v1/contratos.py`): dos claves de módulo
+   (`contratos_dias_alerta_vigencia`, `contratos_pct_alerta_saldo`),
+   resueltas con `obtener_entero(db, clave, default=...)` (mismo helper
+   de `crud/parametro_sistema.py` de la Sesión 18) en los 5 endpoints que
+   devuelven alguno de los dos campos: `listar_contratos`,
+   `obtener_contrato`/`crear_contrato` (vía `_build_detail`, que ahora
+   recibe ambos umbrales), `agregar_producto_contratado` (solo umbral de
+   saldo). **`cambiar_estado_contrato` es el único que cambia de
+   estrategia de serialización, no solo de argumentos** — antes hacía
+   `return contrato` (ORM crudo) con conversión automática vía
+   `response_model=ContratoOut`; ahora construye
+   `ContratoOut.from_model(contrato, umbral_vigencia)` explícito.
+   **Test nuevo**: `test_contratos.py::
+   test_parametro_sistema_alerta_vigencia_y_saldo` — sin configurar nada,
+   un contrato a 15 días de vencer y un producto contratado al 100% de
+   saldo se comportan igual que siempre (`alerta_vigencia=True` por el
+   umbral de 30 por defecto, `alerta_saldo=False` por el de 15); `PUT
+   /parametros-sistema` con `contratos_dias_alerta_vigencia=5` → el mismo
+   contrato (15 días) pasa a `alerta_vigencia=False` tanto en el detalle
+   como en el listado; `PUT` con `contratos_pct_alerta_saldo=100` → el
+   producto contratado (100% de saldo) pasa a `alerta_saldo=True`;
+   `PATCH .../estado` (cambio de estado) también refleja el umbral
+   configurado. `pytest -q` completo: 32/32 en verde (mismo flake
+   preexistente de `test_reportes.py::test_reportes_completo`, que no se
+   disparó en esta corrida — ajeno a esta sesión). Verificado además con
+   un backend descartable + llamadas directas por API contra un seed
+   real: contrato de 15 días → `alerta_vigencia=true` por defecto →
+   `PUT contratos_dias_alerta_vigencia=5` → `alerta_vigencia=false` en
+   detalle, listado y `cambiar_estado_contrato` → `PUT
+   contratos_pct_alerta_saldo=100` → `alerta_saldo=true` en el producto
+   contratado → `DELETE` de ambos parámetros → vuelve exactamente al
+   comportamiento por defecto (30 días / 15%). Sin verificación de
+   navegador (sin cambios de frontend); `npx tsc --noEmit` + `npx
+   eslint .` no aplican por el mismo motivo — no se tocó ningún archivo
+   `.ts`/`.tsx`.
 
 ## 11. Cómo correr el proyecto
 

@@ -340,3 +340,111 @@ async def test_rn_alcance_proveedor(client: AsyncClient):
     # ...pero no el de otro proveedor
     detalle_ajeno = await client.get(f"/api/v1/contratos/{contrato_b_id}", headers=headers_proveedor_a)
     assert detalle_ajeno.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_parametro_sistema_alerta_vigencia_y_saldo(client: AsyncClient):
+    """Sesión 19: RN-12 (alerta_vigencia, alerta_saldo) usa 30 días / 15%
+    por defecto (mismos umbrales hardcodeados de siempre) hasta que se
+    configuren las claves contratos_dias_alerta_vigencia /
+    contratos_pct_alerta_saldo en parametro_sistema."""
+    headers = _headers_admin()
+
+    producto_resp = await client.post(
+        "/api/v1/productos",
+        headers=headers,
+        json={"codigo": "P001", "nombre": "Arroz superior", "categoria": "Abarrotes", "unidad_id": 1},
+    )
+    producto_id = producto_resp.json()["producto_id"]
+
+    racion_resp = await client.post(
+        "/api/v1/planificacion/raciones-anuales",
+        headers=headers,
+        json={"sede_id": 1, "centro_consumo_id": 1, "anio": 2026, "poblacion_atendida": 100, "raciones_dia": 100},
+    )
+    racion_anual_id = racion_resp.json()["racion_anual_id"]
+
+    req_resp = await client.post(
+        "/api/v1/requerimientos-anuales",
+        headers=headers,
+        json={
+            "racion_anual_id": racion_anual_id,
+            "presupuesto_referencial_total": 5000,
+            "detalle": [
+                {"producto_id": producto_id, "cantidad_estimada_anual": 1000, "unidad_id": 1, "presupuesto_referencial": 5000}
+            ],
+        },
+    )
+    requerimiento_anual_id = req_resp.json()["requerimiento_anual_id"]
+    for estado in ("EN_REVISION", "APROBADO"):
+        await client.patch(
+            f"/api/v1/requerimientos-anuales/{requerimiento_anual_id}/estado", headers=headers, json={"estado": estado}
+        )
+
+    proveedor_resp = await client.post(
+        "/api/v1/proveedores", headers=headers, json={"ruc": "20333333333", "razon_social": "Proveedor Umbral SAC"}
+    )
+    proveedor_id = proveedor_resp.json()["proveedor_id"]
+
+    fecha_inicio = date.today()
+    fecha_fin = date.today() + timedelta(days=15)  # dentro de los 30 días por defecto -> alerta_vigencia=True
+
+    contrato_resp = await client.post(
+        "/api/v1/contratos",
+        headers=headers,
+        json={
+            "numero_contrato": "CTR-UMBRAL-001",
+            "proveedor_id": proveedor_id,
+            "requerimiento_anual_id": requerimiento_anual_id,
+            "fecha_inicio": fecha_inicio.isoformat(),
+            "fecha_fin": fecha_fin.isoformat(),
+            "presupuesto_total": 5000,
+        },
+    )
+    assert contrato_resp.status_code == 201, contrato_resp.text
+    contrato = contrato_resp.json()
+    assert contrato["alerta_vigencia"] is True  # 15 días <= 30 (default)
+    contrato_id = contrato["contrato_id"]
+
+    pc_resp = await client.post(
+        f"/api/v1/contratos/{contrato_id}/productos",
+        headers=headers,
+        json={"producto_id": producto_id, "precio_unitario": 5.5, "cantidad_contratada": 100},
+    )
+    assert pc_resp.status_code == 201, pc_resp.text
+    assert pc_resp.json()["alerta_saldo"] is False  # 100% de saldo, muy por encima del 15% (default)
+
+    # bajar el umbral de vigencia a 5 días -> el contrato de 15 días deja de alertar
+    umbral_vigencia = await client.put(
+        "/api/v1/parametros-sistema",
+        headers=headers,
+        json={"clave": "contratos_dias_alerta_vigencia", "valor": "5"},
+    )
+    assert umbral_vigencia.status_code == 200, umbral_vigencia.text
+
+    detalle = await client.get(f"/api/v1/contratos/{contrato_id}", headers=headers)
+    assert detalle.status_code == 200, detalle.text
+    assert detalle.json()["alerta_vigencia"] is False  # 15 días > 5 (umbral configurado)
+
+    lista = await client.get("/api/v1/contratos", headers=headers)
+    assert lista.status_code == 200, lista.text
+    fila = next(c for c in lista.json()["items"] if c["contrato_id"] == contrato_id)
+    assert fila["alerta_vigencia"] is False
+
+    # subir el umbral de saldo a 100% -> el producto contratado (100% de saldo) sí alerta
+    umbral_saldo = await client.put(
+        "/api/v1/parametros-sistema",
+        headers=headers,
+        json={"clave": "contratos_pct_alerta_saldo", "valor": "100"},
+    )
+    assert umbral_saldo.status_code == 200, umbral_saldo.text
+
+    detalle_con_saldo = await client.get(f"/api/v1/contratos/{contrato_id}", headers=headers)
+    assert detalle_con_saldo.json()["productos_contratados"][0]["alerta_saldo"] is True
+
+    # cambiar_estado_contrato también refleja el umbral configurado (5 días)
+    cambio_estado = await client.patch(
+        f"/api/v1/contratos/{contrato_id}/estado", headers=headers, json={"estado": "SUSPENDIDO"}
+    )
+    assert cambio_estado.status_code == 200, cambio_estado.text
+    assert cambio_estado.json()["alerta_vigencia"] is False

@@ -39,7 +39,7 @@ class ProductoContratadoOut(BaseModel):
     alerta_saldo: bool
 
     @classmethod
-    def from_model(cls, obj) -> "ProductoContratadoOut":
+    def from_model(cls, obj, umbral_alerta_saldo: int) -> "ProductoContratadoOut":
         return cls(
             producto_contratado_id=obj.producto_contratado_id,
             producto_id=obj.producto_id,
@@ -52,7 +52,7 @@ class ProductoContratadoOut(BaseModel):
             saldo_monetario=obj.saldo_monetario,
             porcentaje_saldo_fisico=obj.porcentaje_saldo_fisico,
             porcentaje_saldo_monetario=obj.porcentaje_saldo_monetario,
-            alerta_saldo=obj.alerta_saldo,
+            alerta_saldo=obj.calcular_alerta_saldo(umbral_alerta_saldo),
         )
 
 
@@ -86,14 +86,33 @@ class ContratoOut(BaseModel):
     dias_para_vencer: int
     alerta_vigencia: bool
 
+    @classmethod
+    def from_model(cls, obj, umbral_alerta_vigencia: int) -> "ContratoOut":
+        return cls(
+            contrato_id=obj.contrato_id,
+            numero_contrato=obj.numero_contrato,
+            proveedor_id=obj.proveedor_id,
+            requerimiento_anual_id=obj.requerimiento_anual_id,
+            fecha_inicio=obj.fecha_inicio,
+            fecha_fin=obj.fecha_fin,
+            presupuesto_total=obj.presupuesto_total,
+            condiciones=obj.condiciones,
+            penalidad_json=obj.penalidad_json,
+            responsable_id=obj.responsable_id,
+            estado=obj.estado,
+            creado_en=obj.creado_en,
+            dias_para_vencer=obj.dias_para_vencer,
+            alerta_vigencia=obj.calcular_alerta_vigencia(umbral_alerta_vigencia),
+        )
+
 
 class ContratoListOut(ContratoOut):
     proveedor_razon_social: str
     proveedor_ruc: str
 
     @classmethod
-    def from_model(cls, obj) -> "ContratoListOut":
-        base = ContratoOut.model_validate(obj)
+    def from_model(cls, obj, umbral_alerta_vigencia: int) -> "ContratoListOut":
+        base = ContratoOut.from_model(obj, umbral_alerta_vigencia)
         return cls(
             **base.model_dump(),
             proveedor_razon_social=obj.proveedor.razon_social,

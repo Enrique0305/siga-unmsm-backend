@@ -51,10 +51,12 @@ class Contrato(Base):
     def dias_para_vencer(self) -> int:
         return (self.fecha_fin - date.today()).days
 
-    @property
-    def alerta_vigencia(self) -> bool:
-        """RN-12: alerta cuando la vigencia está a 30 días o menos de vencer."""
-        return 0 <= self.dias_para_vencer <= 30
+    def calcular_alerta_vigencia(self, umbral_dias: int = 30) -> bool:
+        """RN-12: alerta cuando la vigencia está a `umbral_dias` días o menos
+        de vencer. Umbral configurable vía parametro_sistema (clave
+        "contratos_dias_alerta_vigencia", Sesión 19); 30 si no está
+        configurado."""
+        return 0 <= self.dias_para_vencer <= umbral_dias
 
 
 class CronogramaEntrega(Base):
@@ -98,7 +100,9 @@ class ProductoContratado(Base):
     def porcentaje_saldo_monetario(self) -> float:
         return round((self.saldo_monetario / self.tope_monetario) * 100, 2) if self.tope_monetario else 0.0
 
-    @property
-    def alerta_saldo(self) -> bool:
-        """RN-12: alerta cuando el saldo físico o monetario cae a 15% o menos del tope."""
-        return self.porcentaje_saldo_fisico <= 15 or self.porcentaje_saldo_monetario <= 15
+    def calcular_alerta_saldo(self, umbral_pct: int = 15) -> bool:
+        """RN-12: alerta cuando el saldo físico o monetario cae a
+        `umbral_pct`% o menos del tope. Umbral configurable vía
+        parametro_sistema (clave "contratos_pct_alerta_saldo", Sesión 19);
+        15 si no está configurado."""
+        return self.porcentaje_saldo_fisico <= umbral_pct or self.porcentaje_saldo_monetario <= umbral_pct
