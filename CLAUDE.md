@@ -835,8 +835,9 @@ MySQL corriendo para testear lógica de negocio.
    para `.proveedor_id`. **Fuera de alcance, a propósito**:
    `inspecciones.py` y el resto de `actas_observacion.py` (`PROVEEDOR`
    nunca escribe ahí) y `pedidos_semanales.py` (sin vínculo directo a
-   proveedor en el modelo) — ampliar más allá del hueco descrito
-   ("ve todas las OCs/contratos/guías") quedó fuera de esta sesión.
+   proveedor en el modelo, cerrado en la Sesión 16) — ampliar más allá
+   del hueco descrito ("ve todas las OCs/contratos/guías") quedó fuera
+   de esta sesión.
    Frontend: `UsuarioForm.tsx` (Sesión 10) gana un select "Proveedor"
    condicional (`rolSeleccionado?.nombre === "PROVEEDOR"`, mismo criterio
    que el ocultamiento de almacenes cuando `acceso_todos_almacenes`),
@@ -1044,6 +1045,51 @@ MySQL corriendo para testear lógica de negocio.
    del bug de paginación) → `GET /ubicaciones` solo la propia → `GET
    /almacenes/{id}` de otro almacén → 403. `npx tsc --noEmit` + `npx
    eslint .` limpios (sin cambios de frontend en esta sesión).
+   ~~**Sesión 16 — Alcance de PROVEEDOR en Pedidos semanales**~~ ✅
+   implementado. Backend-only, el más pequeño de esta racha de sesiones
+   de deuda técnica. Cierra un límite documentado explícitamente desde la
+   Sesión 12: `pedidos_semanales.py` quedó fuera de esa sesión porque
+   `PedidoSemanal` no tiene columna `proveedor_id` directa — cualquier
+   `PROVEEDOR` autenticado podía listar/ver el detalle de **todos** los
+   pedidos semanales del sistema, pese a que `Contrato`/`OrdenCompra`/
+   `GuiaRemision` ya estaban acotados. El camino real es `PedidoSemanal.
+   orden_compra_id` → `OrdenCompra.contrato_id` → `Contrato.proveedor_id`;
+   como `PROVEEDOR` nunca está en `ROLES_EDICION` de este router (el
+   diseño dice "[Logística/Nutrición] genera Pedido Semanal"), el hueco
+   era puramente de lectura, no de escritura. Mismo patrón "lista fuerza
+   el filtro, detalle verifica" de la Sesión 12:
+   `crud/pedido_semanal.py::list_filtrado` gana `proveedor_id` (mismo
+   `.join(OrdenCompra).join(Contrato)` ya usado en `orden_compra_repo.
+   list_filtrado`); el router fuerza `proveedor_filtro = current.
+   proveedor_id if current.rol == "PROVEEDOR" else None`; el detalle
+   agrega `verificar_acceso_proveedor(current, pedido.orden_compra.
+   contrato.proveedor_id)` junto al `verificar_acceso_almacen` que ya
+   tenía. Confirmado que `pedido.orden_compra.contrato.proveedor_id` no
+   dispara I/O extra tras `get_con_relaciones`: `PedidoSemanal.orden_compra`
+   y `OrdenCompra.contrato` están declarados `lazy="joined"` a nivel de
+   mapper, y SQLAlchemy aplica esa estrategia de forma transitiva para
+   cualquier carga de esas clases (mismo razonamiento ya usado en la
+   Sesión 11 para las cadenas de `actas_observacion.py`) — los 5 tests
+   nuevos pasaron a la primera sin necesitar añadir ningún `.options()`.
+   Test nuevo: `test_compras.py::test_rn_alcance_proveedor_pedidos_semanales`
+   (dos proveedores independientes, cada uno con su propia OC + pedido
+   semanal — mismo patrón que `test_rn_alcance_proveedor`). `pytest -q`
+   completo: 29/29 en verde (el flake de `test_reportes.py` no se disparó
+   esta vez — depende de la hora UTC exacta, sigue siendo el mismo
+   problema preexistente y ajeno, no una señal de que se haya corregido).
+   Verificado con un login real contra un seed real: dos cadenas
+   proveedor→contrato→OC→pedido semanal completas por API, usuario
+   `PROVEEDOR` real vinculado al proveedor A **y con un almacén asignado**
+   (sin almacén asignado, RN-20 ya bloquea todo antes de llegar al chequeo
+   de proveedor — se encontró este matiz recién al verificar manualmente:
+   la primera prueba con un usuario `PROVEEDOR` sin `almacen_ids` dio
+   `total: 0` por RN-20, no por el fix de esta sesión, hubo que asignarle
+   un almacén con `PATCH /usuarios/{id}` para aislar la dimensión que
+   realmente se estaba probando) → `GET /pedidos-semanales` devuelve solo
+   el propio → detalle propio → 200 → detalle del proveedor B (mismo
+   almacén) → 403 exacto ("No tienes autorización para operar sobre los
+   documentos de este proveedor"). `npx tsc --noEmit` + `npx eslint .`
+   limpios (sin cambios de frontend en esta sesión).
 
 ## 11. Cómo correr el proyecto
 

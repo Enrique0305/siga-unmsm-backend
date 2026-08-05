@@ -8,6 +8,7 @@ from app.api.deps import (
     require_roles,
     resolver_almacenes_visibles,
     verificar_acceso_almacen,
+    verificar_acceso_proveedor,
 )
 from app.crud.pedido_semanal import pedido_semanal_repo
 from app.db.session import get_db
@@ -30,9 +31,16 @@ async def listar_pedidos_semanales(
     db: AsyncSession = Depends(get_db),
     current: CurrentUser = Depends(get_current_user),
 ) -> Page[PedidoSemanalOut]:
+    proveedor_filtro = current.proveedor_id if current.rol == "PROVEEDOR" else None
     if current.acceso_todos_almacenes:
         items, total = await pedido_semanal_repo.list_filtrado(
-            db, page=page, page_size=page_size, orden_compra_id=orden_compra_id, almacen_id=almacen_id, menu_id=menu_id
+            db,
+            page=page,
+            page_size=page_size,
+            orden_compra_id=orden_compra_id,
+            almacen_id=almacen_id,
+            menu_id=menu_id,
+            proveedor_id=proveedor_filtro,
         )
     else:
         items, total = await pedido_semanal_repo.list_filtrado(
@@ -42,6 +50,7 @@ async def listar_pedidos_semanales(
             orden_compra_id=orden_compra_id,
             almacen_ids=resolver_almacenes_visibles(current, almacen_id),
             menu_id=menu_id,
+            proveedor_id=proveedor_filtro,
         )
     return Page(
         items=[PedidoSemanalOut.from_model(p) for p in items], total=total, page=page, page_size=page_size
@@ -58,6 +67,7 @@ async def obtener_pedido_semanal(
     if pedido is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pedido semanal no encontrado")
     verificar_acceso_almacen(current, pedido.almacen_id)
+    verificar_acceso_proveedor(current, pedido.orden_compra.contrato.proveedor_id)
     return PedidoSemanalOut.from_model(pedido)
 
 

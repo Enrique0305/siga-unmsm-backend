@@ -862,3 +862,76 @@ async def test_rn20_lecturas_ordenes_compra_pedidos_guias(client: AsyncClient):
     # regresión: ADMIN sigue viendo todo
     lista_oc_admin = await client.get("/api/v1/ordenes-compra", headers=headers)
     assert {o["numero_oc"] for o in lista_oc_admin.json()["items"]} == {"OC-LEC-001", "OC-LEC-002", "OC-LEC-003"}
+
+
+@pytest.mark.asyncio
+async def test_rn_alcance_proveedor_pedidos_semanales(client: AsyncClient):
+    """Sesión 16: pedidos_semanales.py quedó fuera del alcance de PROVEEDOR
+    en la Sesión 12 porque PedidoSemanal no tiene proveedor_id directo — se
+    deriva vía orden_compra -> contrato.proveedor_id."""
+    headers = _headers_admin()
+    ctx_a = await _preparar_contrato_con_producto(
+        client,
+        headers,
+        producto_codigo="P-PED-A",
+        proveedor_ruc="20333333333",
+        proveedor_razon_social="Proveedor Pedidos A",
+        numero_contrato="CTR-PED-A",
+    )
+    ctx_b = await _preparar_contrato_con_producto(
+        client,
+        headers,
+        producto_codigo="P-PED-B",
+        proveedor_ruc="20444444444",
+        proveedor_razon_social="Proveedor Pedidos B",
+        numero_contrato="CTR-PED-B",
+    )
+
+    async def _crear_pedido(ctx: dict, numero_oc: str) -> dict:
+        oc_resp = await client.post(
+            "/api/v1/ordenes-compra",
+            headers=headers,
+            json={
+                "numero_oc": numero_oc,
+                "contrato_id": ctx["contrato_id"],
+                "periodo_mes": date.today().replace(day=1).isoformat(),
+                "detalle": [
+                    {
+                        "producto_contratado_id": ctx["producto_contratado_id"],
+                        "cantidad_solicitada": 10,
+                        "distribucion": [{"almacen_id": 1, "cantidad_distribuida": 10}],
+                    }
+                ],
+            },
+        )
+        assert oc_resp.status_code == 201, oc_resp.text
+        oc = oc_resp.json()
+
+        pedido_resp = await client.post(
+            "/api/v1/pedidos-semanales",
+            headers=headers,
+            json={
+                "orden_compra_id": oc["orden_compra_id"],
+                "menu_id": ctx["menu_id"],
+                "almacen_id": 1,
+                "semana_inicio": date.today().isoformat(),
+                "semana_fin": (date.today() + timedelta(days=6)).isoformat(),
+            },
+        )
+        assert pedido_resp.status_code == 201, pedido_resp.text
+        return pedido_resp.json()
+
+    pedido_a = await _crear_pedido(ctx_a, "OC-PED-A-001")
+    pedido_b = await _crear_pedido(ctx_b, "OC-PED-B-001")
+
+    headers_proveedor_a = _headers_rol("PROVEEDOR", almacenes=[1], proveedor_id=ctx_a["proveedor_id"])
+
+    lista = await client.get("/api/v1/pedidos-semanales", headers=headers_proveedor_a)
+    assert lista.status_code == 200, lista.text
+    assert {p["pedido_semanal_id"] for p in lista.json()["items"]} == {pedido_a["pedido_semanal_id"]}
+
+    detalle_propio = await client.get(f"/api/v1/pedidos-semanales/{pedido_a['pedido_semanal_id']}", headers=headers_proveedor_a)
+    assert detalle_propio.status_code == 200, detalle_propio.text
+
+    detalle_ajeno = await client.get(f"/api/v1/pedidos-semanales/{pedido_b['pedido_semanal_id']}", headers=headers_proveedor_a)
+    assert detalle_ajeno.status_code == 403

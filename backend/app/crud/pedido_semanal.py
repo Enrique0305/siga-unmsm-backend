@@ -4,6 +4,7 @@ from sqlalchemy.orm import selectinload
 
 from app.crud.base import CRUDBase
 from app.models.compras import OrdenCompra, PedidoSemanal
+from app.models.contratos import Contrato
 from app.models.organizacion import Almacen
 from app.models.planificacion import MenuQuincenal
 from app.schemas.compra import PedidoSemanalCreate
@@ -27,6 +28,7 @@ class CRUDPedidoSemanal(CRUDBase[PedidoSemanal]):
         almacen_id: int | None = None,
         almacen_ids: list[int] | None = None,
         menu_id: int | None = None,
+        proveedor_id: int | None = None,
     ) -> tuple[list[PedidoSemanal], int]:
         stmt = select(PedidoSemanal).options(selectinload(PedidoSemanal.almacen))
         if orden_compra_id is not None:
@@ -35,6 +37,10 @@ class CRUDPedidoSemanal(CRUDBase[PedidoSemanal]):
             stmt = stmt.where(PedidoSemanal.almacen_id == almacen_id)
         if almacen_ids is not None:
             stmt = stmt.where(PedidoSemanal.almacen_id.in_(almacen_ids))
+        if proveedor_id is not None:
+            stmt = stmt.join(OrdenCompra, PedidoSemanal.orden_compra_id == OrdenCompra.orden_compra_id).join(
+                Contrato, OrdenCompra.contrato_id == Contrato.contrato_id
+            ).where(Contrato.proveedor_id == proveedor_id)
         if menu_id is not None:
             stmt = stmt.where(PedidoSemanal.menu_id == menu_id)
 
