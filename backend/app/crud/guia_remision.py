@@ -32,6 +32,8 @@ class CRUDGuiaRemision(CRUDBase[GuiaRemision]):
         page_size: int = 20,
         orden_compra_id: int | None = None,
         proveedor_id: int | None = None,
+        almacen_destino_id: int | None = None,
+        almacen_ids: list[int] | None = None,
         estado: str | None = None,
     ) -> tuple[list[GuiaRemision], int]:
         stmt = select(GuiaRemision)
@@ -39,6 +41,10 @@ class CRUDGuiaRemision(CRUDBase[GuiaRemision]):
             stmt = stmt.where(GuiaRemision.orden_compra_id == orden_compra_id)
         if proveedor_id is not None:
             stmt = stmt.where(GuiaRemision.proveedor_id == proveedor_id)
+        if almacen_destino_id is not None:
+            stmt = stmt.where(GuiaRemision.almacen_destino_id == almacen_destino_id)
+        if almacen_ids is not None:
+            stmt = stmt.where(GuiaRemision.almacen_destino_id.in_(almacen_ids))
         if estado is not None:
             stmt = stmt.where(GuiaRemision.estado == estado)
 

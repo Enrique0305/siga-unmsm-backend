@@ -1,7 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import CurrentUser, get_current_user, require_roles, verificar_acceso_almacen
+from app.api.deps import (
+    CurrentUser,
+    get_current_user,
+    require_roles,
+    resolver_almacenes_visibles,
+    verificar_acceso_almacen,
+)
 from app.crud.inspeccion import inspeccion_repo
 from app.db.session import get_db
 from app.models.compras import GuiaRemision
@@ -20,9 +26,20 @@ async def listar_inspecciones(
     page_size: int = 20,
     guia_remision_id: int | None = None,
     db: AsyncSession = Depends(get_db),
-    _current: CurrentUser = Depends(get_current_user),
+    current: CurrentUser = Depends(get_current_user),
 ) -> Page[InspeccionOut]:
-    items, total = await inspeccion_repo.list_filtrado(db, page=page, page_size=page_size, guia_remision_id=guia_remision_id)
+    if current.acceso_todos_almacenes:
+        items, total = await inspeccion_repo.list_filtrado(
+            db, page=page, page_size=page_size, guia_remision_id=guia_remision_id
+        )
+    else:
+        items, total = await inspeccion_repo.list_filtrado(
+            db,
+            page=page,
+            page_size=page_size,
+            guia_remision_id=guia_remision_id,
+            almacen_ids=resolver_almacenes_visibles(current, None),
+        )
     return Page(items=items, total=total, page=page, page_size=page_size)
 
 
@@ -30,11 +47,12 @@ async def listar_inspecciones(
 async def obtener_inspeccion(
     inspeccion_id: int,
     db: AsyncSession = Depends(get_db),
-    _current: CurrentUser = Depends(get_current_user),
+    current: CurrentUser = Depends(get_current_user),
 ) -> InspeccionDetailOut:
     inspeccion = await inspeccion_repo.get_con_detalle(db, inspeccion_id)
     if inspeccion is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Inspección no encontrada")
+    verificar_acceso_almacen(current, inspeccion.guia_remision.almacen_destino_id)
     return InspeccionDetailOut.from_model(inspeccion)
 
 

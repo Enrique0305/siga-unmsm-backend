@@ -25,6 +25,7 @@ class CRUDPedidoSemanal(CRUDBase[PedidoSemanal]):
         page_size: int = 20,
         orden_compra_id: int | None = None,
         almacen_id: int | None = None,
+        almacen_ids: list[int] | None = None,
         menu_id: int | None = None,
     ) -> tuple[list[PedidoSemanal], int]:
         stmt = select(PedidoSemanal).options(selectinload(PedidoSemanal.almacen))
@@ -32,6 +33,8 @@ class CRUDPedidoSemanal(CRUDBase[PedidoSemanal]):
             stmt = stmt.where(PedidoSemanal.orden_compra_id == orden_compra_id)
         if almacen_id is not None:
             stmt = stmt.where(PedidoSemanal.almacen_id == almacen_id)
+        if almacen_ids is not None:
+            stmt = stmt.where(PedidoSemanal.almacen_id.in_(almacen_ids))
         if menu_id is not None:
             stmt = stmt.where(PedidoSemanal.menu_id == menu_id)
 

@@ -4,7 +4,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import CurrentUser, get_current_user, require_roles, verificar_acceso_almacen, verificar_acceso_proveedor
+from app.api.deps import (
+    CurrentUser,
+    get_current_user,
+    require_roles,
+    verificar_acceso_almacen,
+    verificar_acceso_proveedor,
+)
 from app.crud.informe_conformidad import informe_conformidad_repo
 from app.crud.orden_compra import orden_compra_repo
 from app.db.session import get_db
@@ -44,6 +50,7 @@ async def listar_ordenes_compra(
         proveedor_id=proveedor_filtro,
         estado=estado,
         buscar=buscar,
+        almacen_ids=None if current.acceso_todos_almacenes else current.almacenes,
     )
     return Page(items=items, total=total, page=page, page_size=page_size)
 
@@ -58,6 +65,16 @@ async def obtener_orden_compra(
     if oc is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Orden de compra no encontrada")
     verificar_acceso_proveedor(current, oc.contrato.proveedor_id)
+    if not current.acceso_todos_almacenes:
+        # RN-20 en lecturas: política ANY (visible si tiene acceso a al menos
+        # uno de los almacenes distribuidos) — deliberadamente distinto del
+        # ALL de crear_orden_compra/cambiar_estado_orden_compra (Sesión 11).
+        almacen_ids_oc = {dist.almacen_id for det in oc.detalle for dist in det.distribucion}
+        if not any(current.tiene_acceso_almacen(a) for a in almacen_ids_oc):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tienes autorización para operar sobre este almacén (RN-20)",
+            )
     return OrdenCompraDetailOut.from_model(oc)
 
 

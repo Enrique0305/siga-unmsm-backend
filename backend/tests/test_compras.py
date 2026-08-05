@@ -732,3 +732,133 @@ async def test_rn_alcance_proveedor(client: AsyncClient):
         json={"orden_compra_detalle_id": docs_b["orden_compra_detalle_id"], "cantidad_entregada": 1},
     )
     assert detalle_bloqueado.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_rn20_lecturas_ordenes_compra_pedidos_guias(client: AsyncClient):
+    """Sesión 15: cierra RN-20 en las lecturas (GET) — hasta la Sesión 11
+    solo las escrituras estaban acotadas por almacén. Un usuario restringido
+    al almacén 1 no debe ver, ni en la lista ni en el detalle, documentos de
+    otro almacén."""
+    headers = _headers_admin()
+    ctx = await _preparar_contrato_con_producto(client, headers)
+
+    async def _crear_oc(numero_oc: str, distribucion: list[dict]) -> dict:
+        oc_resp = await client.post(
+            "/api/v1/ordenes-compra",
+            headers=headers,
+            json={
+                "numero_oc": numero_oc,
+                "contrato_id": ctx["contrato_id"],
+                "periodo_mes": date.today().replace(day=1).isoformat(),
+                "detalle": [
+                    {
+                        "producto_contratado_id": ctx["producto_contratado_id"],
+                        "cantidad_solicitada": sum(d["cantidad_distribuida"] for d in distribucion),
+                        "distribucion": distribucion,
+                    }
+                ],
+            },
+        )
+        assert oc_resp.status_code == 201, oc_resp.text
+        return oc_resp.json()
+
+    oc_1 = await _crear_oc("OC-LEC-001", [{"almacen_id": 1, "cantidad_distribuida": 10}])
+    oc_2 = await _crear_oc("OC-LEC-002", [{"almacen_id": 2, "cantidad_distribuida": 10}])
+    oc_any = await _crear_oc(
+        "OC-LEC-003", [{"almacen_id": 1, "cantidad_distribuida": 5}, {"almacen_id": 2, "cantidad_distribuida": 5}]
+    )
+
+    pedido_1_resp = await client.post(
+        "/api/v1/pedidos-semanales",
+        headers=headers,
+        json={
+            "orden_compra_id": oc_1["orden_compra_id"],
+            "menu_id": ctx["menu_id"],
+            "almacen_id": 1,
+            "semana_inicio": date.today().isoformat(),
+            "semana_fin": (date.today() + timedelta(days=6)).isoformat(),
+        },
+    )
+    assert pedido_1_resp.status_code == 201, pedido_1_resp.text
+    pedido_2_resp = await client.post(
+        "/api/v1/pedidos-semanales",
+        headers=headers,
+        json={
+            "orden_compra_id": oc_2["orden_compra_id"],
+            "menu_id": ctx["menu_id"],
+            "almacen_id": 2,
+            "semana_inicio": date.today().isoformat(),
+            "semana_fin": (date.today() + timedelta(days=6)).isoformat(),
+        },
+    )
+    assert pedido_2_resp.status_code == 201, pedido_2_resp.text
+
+    guia_1_resp = await client.post(
+        "/api/v1/guias-remision",
+        headers=headers,
+        json={
+            "numero_guia": "GR-LEC-001",
+            "proveedor_id": ctx["proveedor_id"],
+            "orden_compra_id": oc_1["orden_compra_id"],
+            "pedido_semanal_id": pedido_1_resp.json()["pedido_semanal_id"],
+            "almacen_destino_id": 1,
+            "fecha_entrega": date.today().isoformat(),
+            "detalle": [{"orden_compra_detalle_id": oc_1["detalle"][0]["orden_compra_detalle_id"], "cantidad_entregada": 1}],
+        },
+    )
+    assert guia_1_resp.status_code == 201, guia_1_resp.text
+    guia_2_resp = await client.post(
+        "/api/v1/guias-remision",
+        headers=headers,
+        json={
+            "numero_guia": "GR-LEC-002",
+            "proveedor_id": ctx["proveedor_id"],
+            "orden_compra_id": oc_2["orden_compra_id"],
+            "pedido_semanal_id": pedido_2_resp.json()["pedido_semanal_id"],
+            "almacen_destino_id": 2,
+            "fecha_entrega": date.today().isoformat(),
+            "detalle": [{"orden_compra_detalle_id": oc_2["detalle"][0]["orden_compra_detalle_id"], "cantidad_entregada": 1}],
+        },
+    )
+    assert guia_2_resp.status_code == 201, guia_2_resp.text
+
+    headers_restringido = _headers_rol("LOGISTICA_CENTRAL", almacenes=[1])
+
+    # ---------------------------------------------------------- órdenes de compra
+    lista_oc = await client.get("/api/v1/ordenes-compra", headers=headers_restringido)
+    assert lista_oc.status_code == 200, lista_oc.text
+    numeros_oc = {o["numero_oc"] for o in lista_oc.json()["items"]}
+    assert numeros_oc == {"OC-LEC-001", "OC-LEC-003"}  # OC-LEC-002 (solo almacén 2) queda fuera
+
+    assert (await client.get(f"/api/v1/ordenes-compra/{oc_1['orden_compra_id']}", headers=headers_restringido)).status_code == 200
+    assert (await client.get(f"/api/v1/ordenes-compra/{oc_2['orden_compra_id']}", headers=headers_restringido)).status_code == 403
+    # política ANY: acceso a almacén 1 basta para ver una OC distribuida también al 2
+    assert (await client.get(f"/api/v1/ordenes-compra/{oc_any['orden_compra_id']}", headers=headers_restringido)).status_code == 200
+
+    # ------------------------------------------------------------ pedidos semanales
+    lista_pedidos = await client.get("/api/v1/pedidos-semanales", headers=headers_restringido)
+    assert lista_pedidos.status_code == 200, lista_pedidos.text
+    assert len(lista_pedidos.json()["items"]) == 1
+    assert lista_pedidos.json()["items"][0]["pedido_semanal_id"] == pedido_1_resp.json()["pedido_semanal_id"]
+
+    assert (
+        await client.get(f"/api/v1/pedidos-semanales/{pedido_1_resp.json()['pedido_semanal_id']}", headers=headers_restringido)
+    ).status_code == 200
+    assert (
+        await client.get(f"/api/v1/pedidos-semanales/{pedido_2_resp.json()['pedido_semanal_id']}", headers=headers_restringido)
+    ).status_code == 403
+
+    # -------------------------------------------------------------- guías de remisión
+    lista_guias = await client.get("/api/v1/guias-remision", headers=headers_restringido)
+    assert lista_guias.status_code == 200, lista_guias.text
+    assert {g["numero_guia"] for g in lista_guias.json()["items"]} == {"GR-LEC-001"}
+
+    guia_1_id = guia_1_resp.json()["guia_remision_id"]
+    guia_2_id = guia_2_resp.json()["guia_remision_id"]
+    assert (await client.get(f"/api/v1/guias-remision/{guia_1_id}", headers=headers_restringido)).status_code == 200
+    assert (await client.get(f"/api/v1/guias-remision/{guia_2_id}", headers=headers_restringido)).status_code == 403
+
+    # regresión: ADMIN sigue viendo todo
+    lista_oc_admin = await client.get("/api/v1/ordenes-compra", headers=headers)
+    assert {o["numero_oc"] for o in lista_oc_admin.json()["items"]} == {"OC-LEC-001", "OC-LEC-002", "OC-LEC-003"}

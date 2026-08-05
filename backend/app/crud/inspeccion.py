@@ -32,10 +32,15 @@ class CRUDInspeccion(CRUDBase[Inspeccion]):
         page: int = 1,
         page_size: int = 20,
         guia_remision_id: int | None = None,
+        almacen_ids: list[int] | None = None,
     ) -> tuple[list[Inspeccion], int]:
         stmt = select(Inspeccion)
         if guia_remision_id is not None:
             stmt = stmt.where(Inspeccion.guia_remision_id == guia_remision_id)
+        if almacen_ids is not None:
+            stmt = stmt.join(GuiaRemision, Inspeccion.guia_remision_id == GuiaRemision.guia_remision_id).where(
+                GuiaRemision.almacen_destino_id.in_(almacen_ids)
+            )
 
         count_stmt = select(func.count()).select_from(stmt.with_only_columns(Inspeccion.inspeccion_id).subquery())
         total = (await db.execute(count_stmt)).scalar_one()

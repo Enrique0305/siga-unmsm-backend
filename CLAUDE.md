@@ -450,7 +450,8 @@ MySQL corriendo para testear lógica de negocio.
    de lo documentado**: ni `ordenes_compra.py` ni `guias_remision.py`
    (además de `pedidos_semanales.py`, ya conocido) filtran por almacenes
    asignados al usuario — no se corrige en esta sesión, fuera de alcance
-   (solo frontend), los selects de almacén muestran todos sin filtrar.
+   (solo frontend), los selects de almacén muestran todos sin filtrar
+   (el backend se cerró en la Sesión 15).
    ~~**Sesión 6 — Módulo "Recepción y calidad" (Inspección/Actas de
    observación/Subsanación)**~~ ✅ implementado. Backend 100% completo
    desde antes (confirmado con un agente de exploración) — sesión
@@ -488,7 +489,7 @@ MySQL corriendo para testear lógica de negocio.
    re-inspeccionar una línea de guía ya inspeccionada → 422. Mismo hueco
    de RN-20 que Compras (ni `inspecciones.py` ni `actas_observacion.py`
    filtran por almacenes asignados al usuario) — no se corrige aquí,
-   fuera de alcance (solo frontend).
+   fuera de alcance (solo frontend; el backend se cerró en la Sesión 15).
    ~~**Sesión 7 — Módulo Almacenes** (CRUD, Ubicaciones, Ingresos,
    Stock/Kardex, Movimientos, Inventarios físicos, Transferencias)~~ ✅
    implementado. Backend 100% completo desde antes — sesión puramente de
@@ -530,7 +531,7 @@ MySQL corriendo para testear lógica de negocio.
    almacenes del usuario en ningún endpoint salvo `GET /almacenes` mismo
    (confirmado en el código, no solo asumido) — no se corrige, es un
    límite ya existente del backend, fuera de alcance de una sesión de
-   frontend. Verificado de punta a punta en el navegador contra una base
+   frontend (cerrado en la Sesión 15). Verificado de punta a punta en el navegador contra una base
    SQLite descartable: almacén → ubicación → ingreso desde una inspección
    conforme (costo unitario correcto, tomado del contrato) → stock/kardex
    reflejando el ingreso → merma (-5) y devolución `DESDE_COCINA` (+3) →
@@ -976,6 +977,73 @@ MySQL corriendo para testear lógica de negocio.
    mismo flake preexistente de `test_reportes.py::test_reportes_completo`,
    ajeno a esta sesión). `npx tsc --noEmit` + `npx eslint .` limpios (sin
    cambios de frontend en esta sesión).
+   ~~**Sesión 15 — RN-20 en lecturas (GET): Almacén, Compras y
+   Recepción**~~ ✅ implementado. Backend-only. RN-20 se cerró para
+   **escrituras** en la Sesión 11 (`verificar_acceso_almacen`) en 5
+   routers, pero cada sesión posterior que tocó esos módulos documentó
+   explícitamente que las **lecturas** seguían sin filtrar por almacén —
+   un `ALMACENERO`/`INSPECTOR` con acceso a un solo almacén podía listar y
+   ver el detalle de documentos de *cualquier* almacén, solo no escribir
+   sobre ellos. Se auditaron los 22 endpoints `GET` de 12 archivos
+   (`almacenes.py`, `ubicaciones.py`, `ingresos_almacen.py`, `stock.py`,
+   `inventarios_fisicos.py`, `transferencias_almacen.py`,
+   `pedidos_semanales.py`, `guias_remision.py`, `inspecciones.py`,
+   `actas_observacion.py`, `ordenes_compra.py`) — ninguno filtraba por
+   almacén salvo `GET /almacenes`, que además tenía un bug real: filtraba
+   en Python **después** de paginar en SQL, rompiendo `total`/paginación
+   para roles restringidos (corregido de paso, mismo archivo que ya había
+   que tocar).
+   Patrón nuevo en `deps.py::resolver_almacenes_visibles(current,
+   almacen_id)`: para roles sin `acceso_todos_almacenes`, retorna la lista
+   de almacenes a la que restringir un listado vía `IN` (o `[]` si el
+   cliente pidió un `almacen_id` fuera de su alcance — `.in_([])` compila
+   a una condición siempre falsa en SQLAlchemy, cero filas sin necesidad
+   de un 403 que filtre si ese almacén existe). Cada `list_filtrado`/
+   `list_stock`/`list_kardex` afectado ganó un parámetro `almacen_ids:
+   list[int] | None` aplicado como `.in_(...)`, coexistiendo con el
+   filtro `almacen_id` de igualdad ya existente — para roles con acceso
+   total el comportamiento es idéntico a antes (cero regresión, todos los
+   tests previos usan `_headers_admin()`). Detalle: mismo
+   `verificar_acceso_almacen` ya usado en escritura, ahora también tras el
+   fetch de lectura.
+   Tres casos con join/agregación genuina, no solo columna directa:
+   `inspecciones.py` (`Inspeccion.guia_remision` es `lazy="joined"`, así
+   que `inspeccion.guia_remision.almacen_destino_id` no cuesta query
+   extra); `actas_observacion.py` (cadena de 3 saltos `ActaObservacion` →
+   `InspeccionDetalle` → `GuiaRemisionDetalle` → `GuiaRemision`, la más
+   profunda — el detalle reutiliza el helper `_guia_de_acta` ya creado en
+   la Sesión 11 en vez de repetir la cadena); `ordenes_compra.py`
+   (`EXISTS` a través de `OrdenCompraDetalle`→`OrdenCompraDistribucion` en
+   vez de un `JOIN` simple, para no duplicar filas de una OC distribuida a
+   varios almacenes y no romper la paginación).
+   **Dos entidades multialmacén con política ANY, no ALL**:
+   `OrdenCompra` (vía `detalle[].distribucion[]`) y `TransferenciaAlmacen`
+   (origen/destino) son visibles si el usuario tiene acceso a **al menos
+   uno** de los almacenes involucrados — deliberadamente distinto del
+   **ALL** decidido en la Sesión 11 para crear/cambiar-estado de una OC
+   (escribir sobre todos los almacenes de una vez es más riesgoso que
+   verlos). `TransferenciaAlmacen` es además la única con un filtro `OR`
+   real (`or_(origen.in_(ids), destino.in_(ids))`) en vez del `IN` simple
+   del resto.
+   Tests nuevos (mismo patrón `_headers_rol`/`_headers_almacenero` ya
+   establecido en la Sesión 11 — dos almacenes, un documento en cada uno,
+   token restringido al almacén 1, verificar lista filtrada + detalle
+   ajeno en 403 + regresión con ADMIN): `test_compras.py::
+   test_rn20_lecturas_ordenes_compra_pedidos_guias` (incluye el caso ANY
+   con una OC distribuida a ambos almacenes), `test_inspeccion.py::
+   test_rn20_lecturas_inspecciones_actas` (con un nuevo helper
+   `_crear_guia_en_almacen`, variante de `_crear_guia_completa` que
+   permite fijar el almacén — ese ya existente siempre usa el 1),
+   `test_almacen.py::test_rn20_lecturas_almacen` (ubicaciones, ingresos,
+   stock, kardex, inventarios físicos, y el caso OR de transferencias).
+   `pytest -q` completo: 27/28 en verde (mismo flake preexistente de
+   `test_reportes.py::test_reportes_completo`, ajeno a esta sesión).
+   Verificado además con un login real contra un seed real: usuario
+   `ALMACENERO` con acceso a un solo almacén (de 4 reales) → `GET
+   /almacenes` devuelve solo el suyo con `total` correcto (confirma el fix
+   del bug de paginación) → `GET /ubicaciones` solo la propia → `GET
+   /almacenes/{id}` de otro almacén → 403. `npx tsc --noEmit` + `npx
+   eslint .` limpios (sin cambios de frontend en esta sesión).
 
 ## 11. Cómo correr el proyecto
 

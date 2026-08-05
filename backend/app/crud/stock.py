@@ -136,11 +136,14 @@ async def list_stock(
     page: int = 1,
     page_size: int = 20,
     almacen_id: int | None = None,
+    almacen_ids: list[int] | None = None,
     producto_id: int | None = None,
 ) -> tuple[list[StockAlmacenProducto], int]:
     stmt = select(StockAlmacenProducto)
     if almacen_id is not None:
         stmt = stmt.where(StockAlmacenProducto.almacen_id == almacen_id)
+    if almacen_ids is not None:
+        stmt = stmt.where(StockAlmacenProducto.almacen_id.in_(almacen_ids))
     if producto_id is not None:
         stmt = stmt.where(StockAlmacenProducto.producto_id == producto_id)
 
@@ -161,12 +164,15 @@ async def list_kardex(
     page: int = 1,
     page_size: int = 20,
     almacen_id: int | None = None,
+    almacen_ids: list[int] | None = None,
     producto_id: int | None = None,
     tipo_movimiento: str | None = None,
 ) -> tuple[list[KardexMovimiento], int]:
     stmt = select(KardexMovimiento)
     if almacen_id is not None:
         stmt = stmt.where(KardexMovimiento.almacen_id == almacen_id)
+    if almacen_ids is not None:
+        stmt = stmt.where(KardexMovimiento.almacen_id.in_(almacen_ids))
     if producto_id is not None:
         stmt = stmt.where(KardexMovimiento.producto_id == producto_id)
     if tipo_movimiento is not None:

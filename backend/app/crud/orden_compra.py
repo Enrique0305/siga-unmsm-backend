@@ -43,6 +43,7 @@ class CRUDOrdenCompra(CRUDBase[OrdenCompra]):
         proveedor_id: int | None = None,
         estado: str | None = None,
         buscar: str | None = None,
+        almacen_ids: list[int] | None = None,
     ) -> tuple[list[OrdenCompra], int]:
         stmt = select(OrdenCompra)
         if proveedor_id is not None:
@@ -53,6 +54,24 @@ class CRUDOrdenCompra(CRUDBase[OrdenCompra]):
             stmt = stmt.where(OrdenCompra.contrato_id == contrato_id)
         if estado is not None:
             stmt = stmt.where(OrdenCompra.estado == estado)
+        if almacen_ids is not None:
+            # RN-20 en lecturas (Sesión 15): visible si ALGUNA distribución de
+            # ALGUNA línea toca un almacén del usuario (política ANY — más
+            # permisiva que el ALL de crear_orden_compra, ver deps.py). EXISTS
+            # en vez de JOIN para no duplicar filas (una OC puede distribuirse
+            # a varios almacenes) y no romper la paginación.
+            subq = (
+                select(OrdenCompraDistribucion.orden_compra_distribucion_id)
+                .join(
+                    OrdenCompraDetalle,
+                    OrdenCompraDetalle.orden_compra_detalle_id == OrdenCompraDistribucion.orden_compra_detalle_id,
+                )
+                .where(
+                    OrdenCompraDetalle.orden_compra_id == OrdenCompra.orden_compra_id,
+                    OrdenCompraDistribucion.almacen_id.in_(almacen_ids),
+                )
+            )
+            stmt = stmt.where(subq.exists())
         if buscar:
             stmt = stmt.where(OrdenCompra.numero_oc.ilike(f"%{buscar}%"))
 

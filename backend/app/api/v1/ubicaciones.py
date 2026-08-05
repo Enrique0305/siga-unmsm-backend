@@ -2,7 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import CurrentUser, get_current_user, require_roles, verificar_acceso_almacen
+from app.api.deps import (
+    CurrentUser,
+    get_current_user,
+    require_roles,
+    resolver_almacenes_visibles,
+    verificar_acceso_almacen,
+)
 from app.crud.ubicacion import ubicacion_repo
 from app.db.session import get_db
 from app.schemas.common import Page
@@ -19,9 +25,14 @@ async def listar_ubicaciones(
     page_size: int = 20,
     almacen_id: int | None = None,
     db: AsyncSession = Depends(get_db),
-    _current: CurrentUser = Depends(get_current_user),
+    current: CurrentUser = Depends(get_current_user),
 ) -> Page[UbicacionInternaOut]:
-    items, total = await ubicacion_repo.list_filtrado(db, page=page, page_size=page_size, almacen_id=almacen_id)
+    if current.acceso_todos_almacenes:
+        items, total = await ubicacion_repo.list_filtrado(db, page=page, page_size=page_size, almacen_id=almacen_id)
+    else:
+        items, total = await ubicacion_repo.list_filtrado(
+            db, page=page, page_size=page_size, almacen_ids=resolver_almacenes_visibles(current, almacen_id)
+        )
     return Page(items=items, total=total, page=page, page_size=page_size)
 
 

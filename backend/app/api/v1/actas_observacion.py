@@ -6,6 +6,7 @@ from app.api.deps import (
     CurrentUser,
     get_current_user,
     require_roles,
+    resolver_almacenes_visibles,
     verificar_acceso_almacen,
     verificar_acceso_proveedor,
 )
@@ -65,9 +66,14 @@ async def listar_actas_observacion(
     page_size: int = 20,
     estado: str | None = None,
     db: AsyncSession = Depends(get_db),
-    _current: CurrentUser = Depends(get_current_user),
+    current: CurrentUser = Depends(get_current_user),
 ) -> Page[ActaObservacionOut]:
-    items, total = await acta_observacion_repo.list_filtrado(db, page=page, page_size=page_size, estado=estado)
+    if current.acceso_todos_almacenes:
+        items, total = await acta_observacion_repo.list_filtrado(db, page=page, page_size=page_size, estado=estado)
+    else:
+        items, total = await acta_observacion_repo.list_filtrado(
+            db, page=page, page_size=page_size, estado=estado, almacen_ids=resolver_almacenes_visibles(current, None)
+        )
     return Page(items=items, total=total, page=page, page_size=page_size)
 
 
@@ -75,11 +81,14 @@ async def listar_actas_observacion(
 async def obtener_acta_observacion(
     acta_observacion_id: int,
     db: AsyncSession = Depends(get_db),
-    _current: CurrentUser = Depends(get_current_user),
+    current: CurrentUser = Depends(get_current_user),
 ) -> ActaObservacionDetailOut:
     acta = await acta_observacion_repo.get_con_detalle(db, acta_observacion_id)
     if acta is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Acta de observación no encontrada")
+    guia = await _guia_de_acta(db, acta_observacion_id)
+    if guia is not None:
+        verificar_acceso_almacen(current, guia.almacen_destino_id)
     return ActaObservacionDetailOut.model_validate(acta)
 
 

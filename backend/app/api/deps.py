@@ -102,6 +102,20 @@ def verificar_acceso_almacen(current: CurrentUser, almacen_id: int) -> None:
         )
 
 
+def resolver_almacenes_visibles(current: CurrentUser, almacen_id: int | None) -> list[int] | None:
+    """RN-20 en lecturas (Sesión 15): calcula el filtro `IN` a aplicar en un
+    listado para un rol sin `acceso_todos_almacenes`. `None` => sin
+    restricción (llamar solo cuando `current.acceso_todos_almacenes` es
+    False; para roles con acceso total no hace falta ni debe usarse).
+    Si el cliente pidió un `almacen_id` fuera de su alcance, retorna una
+    lista vacía (SQLAlchemy compila `.in_([])` como una condición siempre
+    falsa, cero filas) en vez de un 403 — evita filtrar si ese almacén
+    existe o no."""
+    if almacen_id is not None:
+        return [almacen_id] if current.tiene_acceso_almacen(almacen_id) else []
+    return current.almacenes
+
+
 def verificar_acceso_proveedor(current: CurrentUser, proveedor_id: int) -> None:
     """Sesión 12: un usuario con rol PROVEEDOR solo puede leer/escribir
     documentos (contrato, OC, guía) de su propio proveedor_id — cualquier

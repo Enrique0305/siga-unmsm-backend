@@ -418,3 +418,131 @@ async def test_rn_alcance_proveedor_subsanacion(client: AsyncClient):
         json={"fecha_presentacion": date.today().isoformat(), "descripcion": "test"},
     )
     assert subsanacion_ok.status_code == 201, subsanacion_ok.text
+
+
+async def _crear_guia_en_almacen(client: AsyncClient, headers: dict, ctx: dict, numero_oc: str, numero_guia: str, almacen_id: int) -> dict:
+    """Igual que _crear_guia_completa pero permite fijar el almacén (ese
+    helper siempre usa el almacén 1) — necesario para probar RN-20 en
+    lecturas con documentos en dos almacenes distintos (Sesión 15)."""
+    oc_resp = await client.post(
+        "/api/v1/ordenes-compra",
+        headers=headers,
+        json={
+            "numero_oc": numero_oc,
+            "contrato_id": ctx["contrato_id"],
+            "periodo_mes": date.today().replace(day=1).isoformat(),
+            "detalle": [
+                {
+                    "producto_contratado_id": ctx["producto_contratado_id"],
+                    "cantidad_solicitada": 40,
+                    "distribucion": [{"almacen_id": almacen_id, "cantidad_distribuida": 40}],
+                }
+            ],
+        },
+    )
+    assert oc_resp.status_code == 201, oc_resp.text
+    oc = oc_resp.json()
+    orden_compra_detalle_id = oc["detalle"][0]["orden_compra_detalle_id"]
+
+    pedido_resp = await client.post(
+        "/api/v1/pedidos-semanales",
+        headers=headers,
+        json={
+            "orden_compra_id": oc["orden_compra_id"],
+            "menu_id": ctx["menu_id"],
+            "almacen_id": almacen_id,
+            "semana_inicio": date.today().isoformat(),
+            "semana_fin": (date.today() + timedelta(days=6)).isoformat(),
+        },
+    )
+    assert pedido_resp.status_code == 201, pedido_resp.text
+
+    guia_resp = await client.post(
+        "/api/v1/guias-remision",
+        headers=headers,
+        json={
+            "numero_guia": numero_guia,
+            "proveedor_id": ctx["proveedor_id"],
+            "orden_compra_id": oc["orden_compra_id"],
+            "pedido_semanal_id": pedido_resp.json()["pedido_semanal_id"],
+            "almacen_destino_id": almacen_id,
+            "fecha_entrega": date.today().isoformat(),
+            "detalle": [{"orden_compra_detalle_id": orden_compra_detalle_id, "cantidad_entregada": 40}],
+        },
+    )
+    assert guia_resp.status_code == 201, guia_resp.text
+    guia = guia_resp.json()
+    return {
+        "guia_remision_id": guia["guia_remision_id"],
+        "guia_remision_detalle_id": guia["detalle"][0]["guia_remision_detalle_id"],
+    }
+
+
+@pytest.mark.asyncio
+async def test_rn20_lecturas_inspecciones_actas(client: AsyncClient):
+    """Sesión 15: cierra RN-20 en las lecturas (GET) de inspecciones.py y
+    actas_observacion.py — hasta la Sesión 11 solo las escrituras estaban
+    acotadas por almacén."""
+    headers = _headers_admin()
+    ctx = await _preparar_contrato_con_producto(client, headers)
+
+    guia_1 = await _crear_guia_en_almacen(client, headers, ctx, "OC-LEC-INSP-1", "GR-LEC-INSP-1", almacen_id=1)
+    guia_2 = await _crear_guia_en_almacen(client, headers, ctx, "OC-LEC-INSP-2", "GR-LEC-INSP-2", almacen_id=2)
+
+    async def _inspeccionar_y_observar(guia: dict, numero_acta: str) -> dict:
+        inspeccion_resp = await client.post(
+            "/api/v1/inspecciones",
+            headers=headers,
+            json={
+                "guia_remision_id": guia["guia_remision_id"],
+                "detalle": [
+                    {"guia_remision_detalle_id": guia["guia_remision_detalle_id"], "cantidad_conforme": 30, "cantidad_observada": 10}
+                ],
+            },
+        )
+        assert inspeccion_resp.status_code == 201, inspeccion_resp.text
+        inspeccion_detalle_id = inspeccion_resp.json()["detalle"][0]["inspeccion_detalle_id"]
+
+        acta_resp = await client.post(
+            f"/api/v1/actas-observacion/desde-inspeccion-detalle/{inspeccion_detalle_id}",
+            headers=headers,
+            json={"numero_acta": numero_acta, "motivo": "test", "plazo_subsanacion": (date.today() + timedelta(days=5)).isoformat()},
+        )
+        assert acta_resp.status_code == 201, acta_resp.text
+        return {
+            "inspeccion_id": inspeccion_resp.json()["inspeccion_id"],
+            "acta_observacion_id": acta_resp.json()["acta_observacion_id"],
+        }
+
+    docs_1 = await _inspeccionar_y_observar(guia_1, "ACTA-LEC-1")
+    docs_2 = await _inspeccionar_y_observar(guia_2, "ACTA-LEC-2")
+
+    headers_restringido = _headers_rol("INSPECTOR", almacenes=[1])
+
+    # ------------------------------------------------------------- inspecciones
+    lista_inspecciones = await client.get("/api/v1/inspecciones", headers=headers_restringido)
+    assert lista_inspecciones.status_code == 200, lista_inspecciones.text
+    ids_inspecciones = {i["inspeccion_id"] for i in lista_inspecciones.json()["items"]}
+    assert ids_inspecciones == {docs_1["inspeccion_id"]}
+
+    assert (await client.get(f"/api/v1/inspecciones/{docs_1['inspeccion_id']}", headers=headers_restringido)).status_code == 200
+    assert (await client.get(f"/api/v1/inspecciones/{docs_2['inspeccion_id']}", headers=headers_restringido)).status_code == 403
+
+    # -------------------------------------------------------- actas de observación
+    lista_actas = await client.get("/api/v1/actas-observacion", headers=headers_restringido)
+    assert lista_actas.status_code == 200, lista_actas.text
+    numeros_actas = {a["numero_acta"] for a in lista_actas.json()["items"]}
+    assert numeros_actas == {"ACTA-LEC-1"}
+
+    assert (
+        await client.get(f"/api/v1/actas-observacion/{docs_1['acta_observacion_id']}", headers=headers_restringido)
+    ).status_code == 200
+    assert (
+        await client.get(f"/api/v1/actas-observacion/{docs_2['acta_observacion_id']}", headers=headers_restringido)
+    ).status_code == 403
+
+    # regresión: ADMIN sigue viendo todo
+    lista_inspecciones_admin = await client.get("/api/v1/inspecciones", headers=headers)
+    assert len(lista_inspecciones_admin.json()["items"]) == 2
+    lista_actas_admin = await client.get("/api/v1/actas-observacion", headers=headers)
+    assert len(lista_actas_admin.json()["items"]) == 2

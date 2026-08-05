@@ -6,6 +6,7 @@ from app.api.deps import (
     CurrentUser,
     get_current_user,
     require_roles,
+    resolver_almacenes_visibles,
     verificar_acceso_almacen,
     verificar_acceso_proveedor,
 )
@@ -43,20 +44,33 @@ async def listar_guias_remision(
     page_size: int = 20,
     orden_compra_id: int | None = None,
     proveedor_id: int | None = None,
+    almacen_destino_id: int | None = None,
     estado: str | None = None,
     db: AsyncSession = Depends(get_db),
     current: CurrentUser = Depends(get_current_user),
 ) -> Page[GuiaRemisionListOut]:
     if current.rol == "PROVEEDOR":
         proveedor_id = current.proveedor_id
-    items, total = await guia_remision_repo.list_filtrado(
-        db,
-        page=page,
-        page_size=page_size,
-        orden_compra_id=orden_compra_id,
-        proveedor_id=proveedor_id,
-        estado=estado,
-    )
+    if current.acceso_todos_almacenes:
+        items, total = await guia_remision_repo.list_filtrado(
+            db,
+            page=page,
+            page_size=page_size,
+            orden_compra_id=orden_compra_id,
+            proveedor_id=proveedor_id,
+            almacen_destino_id=almacen_destino_id,
+            estado=estado,
+        )
+    else:
+        items, total = await guia_remision_repo.list_filtrado(
+            db,
+            page=page,
+            page_size=page_size,
+            orden_compra_id=orden_compra_id,
+            proveedor_id=proveedor_id,
+            almacen_ids=resolver_almacenes_visibles(current, almacen_destino_id),
+            estado=estado,
+        )
     return Page(
         items=[GuiaRemisionListOut.from_model(g) for g in items], total=total, page=page, page_size=page_size
     )
@@ -72,6 +86,7 @@ async def obtener_guia_remision(
     if guia is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Guía de remisión no encontrada")
     verificar_acceso_proveedor(current, guia.proveedor_id)
+    verificar_acceso_almacen(current, guia.almacen_destino_id)
     return _build_detail(guia)
 
 

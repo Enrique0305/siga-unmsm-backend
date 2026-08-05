@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import CurrentUser, get_current_user, require_roles
+from app.api.deps import CurrentUser, get_current_user, require_roles, resolver_almacenes_visibles
 from app.crud.almacen import almacen_repo
 from app.db.session import get_db
 from app.schemas.almacen import AlmacenCreate, AlmacenOut, AlmacenUpdate
@@ -23,10 +23,12 @@ async def listar_almacenes(
     RN-20: si el usuario no tiene acceso_todos_almacenes, solo ve los
     almacenes de su lista de autorización.
     """
-    items, total = await almacen_repo.list_paginated(db, page=page, page_size=page_size, estado=estado)
-    if not current.acceso_todos_almacenes:
-        items = [a for a in items if a.almacen_id in current.almacenes]
-        total = len(items)
+    if current.acceso_todos_almacenes:
+        items, total = await almacen_repo.list_filtrado(db, page=page, page_size=page_size, estado=estado)
+    else:
+        items, total = await almacen_repo.list_filtrado(
+            db, page=page, page_size=page_size, estado=estado, almacen_ids=current.almacenes
+        )
     return Page(items=items, total=total, page=page, page_size=page_size)
 
 

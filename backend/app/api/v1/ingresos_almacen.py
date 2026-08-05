@@ -2,7 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import CurrentUser, get_current_user, require_roles, verificar_acceso_almacen
+from app.api.deps import (
+    CurrentUser,
+    get_current_user,
+    require_roles,
+    resolver_almacenes_visibles,
+    verificar_acceso_almacen,
+)
 from app.crud.ingreso_almacen import ingreso_almacen_repo
 from app.db.session import get_db
 from app.models.compras import GuiaRemision
@@ -21,11 +27,20 @@ async def listar_ingresos(
     almacen_id: int | None = None,
     guia_remision_id: int | None = None,
     db: AsyncSession = Depends(get_db),
-    _current: CurrentUser = Depends(get_current_user),
+    current: CurrentUser = Depends(get_current_user),
 ) -> Page[IngresoAlmacenOut]:
-    items, total = await ingreso_almacen_repo.list_filtrado(
-        db, page=page, page_size=page_size, almacen_id=almacen_id, guia_remision_id=guia_remision_id
-    )
+    if current.acceso_todos_almacenes:
+        items, total = await ingreso_almacen_repo.list_filtrado(
+            db, page=page, page_size=page_size, almacen_id=almacen_id, guia_remision_id=guia_remision_id
+        )
+    else:
+        items, total = await ingreso_almacen_repo.list_filtrado(
+            db,
+            page=page,
+            page_size=page_size,
+            almacen_ids=resolver_almacenes_visibles(current, almacen_id),
+            guia_remision_id=guia_remision_id,
+        )
     return Page(items=items, total=total, page=page, page_size=page_size)
 
 
@@ -33,11 +48,12 @@ async def listar_ingresos(
 async def obtener_ingreso(
     ingreso_almacen_id: int,
     db: AsyncSession = Depends(get_db),
-    _current: CurrentUser = Depends(get_current_user),
+    current: CurrentUser = Depends(get_current_user),
 ) -> IngresoAlmacenDetailOut:
     ingreso = await ingreso_almacen_repo.get_con_detalle(db, ingreso_almacen_id)
     if ingreso is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ingreso a almacén no encontrado")
+    verificar_acceso_almacen(current, ingreso.almacen_id)
     return IngresoAlmacenDetailOut.from_model(ingreso)
 
 

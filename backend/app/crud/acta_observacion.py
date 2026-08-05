@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.crud.base import CRUDBase
-from app.models.compras import GuiaRemision
+from app.models.compras import GuiaRemision, GuiaRemisionDetalle
 from app.models.inspeccion import ActaObservacion, Inspeccion, InspeccionDetalle, Subsanacion
 from app.schemas.inspeccion import ActaObservacionCreate, SubsanacionCreate
 
@@ -20,11 +20,25 @@ class CRUDActaObservacion(CRUDBase[ActaObservacion]):
         return (await db.execute(stmt)).scalar_one_or_none()
 
     async def list_filtrado(
-        self, db: AsyncSession, page: int = 1, page_size: int = 20, estado: str | None = None
+        self,
+        db: AsyncSession,
+        page: int = 1,
+        page_size: int = 20,
+        estado: str | None = None,
+        almacen_ids: list[int] | None = None,
     ) -> tuple[list[ActaObservacion], int]:
         stmt = select(ActaObservacion)
         if estado is not None:
             stmt = stmt.where(ActaObservacion.estado == estado)
+        if almacen_ids is not None:
+            # RN-20 en lecturas: cadena ActaObservacion -> InspeccionDetalle ->
+            # GuiaRemisionDetalle -> GuiaRemision.almacen_destino_id (Sesión 15).
+            stmt = (
+                stmt.join(InspeccionDetalle, ActaObservacion.inspeccion_detalle_id == InspeccionDetalle.inspeccion_detalle_id)
+                .join(GuiaRemisionDetalle, InspeccionDetalle.guia_remision_detalle_id == GuiaRemisionDetalle.guia_remision_detalle_id)
+                .join(GuiaRemision, GuiaRemisionDetalle.guia_remision_id == GuiaRemision.guia_remision_id)
+                .where(GuiaRemision.almacen_destino_id.in_(almacen_ids))
+            )
 
         count_stmt = select(func.count()).select_from(
             stmt.with_only_columns(ActaObservacion.acta_observacion_id).subquery()

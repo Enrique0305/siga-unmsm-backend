@@ -2,7 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import CurrentUser, get_current_user, require_roles, verificar_acceso_almacen
+from app.api.deps import (
+    CurrentUser,
+    get_current_user,
+    require_roles,
+    resolver_almacenes_visibles,
+    verificar_acceso_almacen,
+)
 from app.crud.pedido_semanal import pedido_semanal_repo
 from app.db.session import get_db
 from app.schemas.common import Page
@@ -22,11 +28,21 @@ async def listar_pedidos_semanales(
     almacen_id: int | None = None,
     menu_id: int | None = None,
     db: AsyncSession = Depends(get_db),
-    _current: CurrentUser = Depends(get_current_user),
+    current: CurrentUser = Depends(get_current_user),
 ) -> Page[PedidoSemanalOut]:
-    items, total = await pedido_semanal_repo.list_filtrado(
-        db, page=page, page_size=page_size, orden_compra_id=orden_compra_id, almacen_id=almacen_id, menu_id=menu_id
-    )
+    if current.acceso_todos_almacenes:
+        items, total = await pedido_semanal_repo.list_filtrado(
+            db, page=page, page_size=page_size, orden_compra_id=orden_compra_id, almacen_id=almacen_id, menu_id=menu_id
+        )
+    else:
+        items, total = await pedido_semanal_repo.list_filtrado(
+            db,
+            page=page,
+            page_size=page_size,
+            orden_compra_id=orden_compra_id,
+            almacen_ids=resolver_almacenes_visibles(current, almacen_id),
+            menu_id=menu_id,
+        )
     return Page(
         items=[PedidoSemanalOut.from_model(p) for p in items], total=total, page=page, page_size=page_size
     )
@@ -36,11 +52,12 @@ async def listar_pedidos_semanales(
 async def obtener_pedido_semanal(
     pedido_semanal_id: int,
     db: AsyncSession = Depends(get_db),
-    _current: CurrentUser = Depends(get_current_user),
+    current: CurrentUser = Depends(get_current_user),
 ) -> PedidoSemanalOut:
     pedido = await pedido_semanal_repo.get_con_relaciones(db, pedido_semanal_id)
     if pedido is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pedido semanal no encontrado")
+    verificar_acceso_almacen(current, pedido.almacen_id)
     return PedidoSemanalOut.from_model(pedido)
 
 

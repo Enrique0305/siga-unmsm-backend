@@ -26,14 +26,18 @@ async def listar_transferencias(
     almacen_destino_id: int | None = None,
     estado: str | None = None,
     db: AsyncSession = Depends(get_db),
-    _current: CurrentUser = Depends(get_current_user),
+    current: CurrentUser = Depends(get_current_user),
 ) -> Page[TransferenciaAlmacenOut]:
+    """RN-20 en lecturas: visible si el usuario tiene acceso a origen O
+    destino (política ANY, ver Sesión 15) — no se usa `resolver_almacenes_
+    visibles` porque hay dos columnas de almacén, no una."""
     items, total = await transferencia_almacen_repo.list_filtrado(
         db,
         page=page,
         page_size=page_size,
         almacen_origen_id=almacen_origen_id,
         almacen_destino_id=almacen_destino_id,
+        almacen_ids=None if current.acceso_todos_almacenes else current.almacenes,
         estado=estado,
     )
     return Page(items=items, total=total, page=page, page_size=page_size)
@@ -43,11 +47,19 @@ async def listar_transferencias(
 async def obtener_transferencia(
     transferencia_id: int,
     db: AsyncSession = Depends(get_db),
-    _current: CurrentUser = Depends(get_current_user),
+    current: CurrentUser = Depends(get_current_user),
 ) -> TransferenciaAlmacenDetailOut:
     transferencia = await transferencia_almacen_repo.get_con_detalle(db, transferencia_id)
     if transferencia is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transferencia no encontrada")
+    if not (
+        current.tiene_acceso_almacen(transferencia.almacen_origen_id)
+        or current.tiene_acceso_almacen(transferencia.almacen_destino_id)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes autorización para operar sobre este almacén (RN-20)",
+        )
     return TransferenciaAlmacenDetailOut.from_model(transferencia)
 
 

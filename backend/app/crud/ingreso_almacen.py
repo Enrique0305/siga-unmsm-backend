@@ -28,11 +28,14 @@ class CRUDIngresoAlmacen(CRUDBase[IngresoAlmacen]):
         page: int = 1,
         page_size: int = 20,
         almacen_id: int | None = None,
+        almacen_ids: list[int] | None = None,
         guia_remision_id: int | None = None,
     ) -> tuple[list[IngresoAlmacen], int]:
         stmt = select(IngresoAlmacen)
         if almacen_id is not None:
             stmt = stmt.where(IngresoAlmacen.almacen_id == almacen_id)
+        if almacen_ids is not None:
+            stmt = stmt.where(IngresoAlmacen.almacen_id.in_(almacen_ids))
         if guia_remision_id is not None:
             stmt = stmt.where(IngresoAlmacen.guia_remision_id == guia_remision_id)
 

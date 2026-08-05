@@ -1,7 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import CurrentUser, get_current_user, require_roles, verificar_acceso_almacen
+from app.api.deps import (
+    CurrentUser,
+    get_current_user,
+    require_roles,
+    resolver_almacenes_visibles,
+    verificar_acceso_almacen,
+)
 from app.crud.inventario_fisico import inventario_fisico_repo
 from app.db.session import get_db
 from app.schemas.common import Page
@@ -19,11 +25,16 @@ async def listar_inventarios_fisicos(
     almacen_id: int | None = None,
     estado: str | None = None,
     db: AsyncSession = Depends(get_db),
-    _current: CurrentUser = Depends(get_current_user),
+    current: CurrentUser = Depends(get_current_user),
 ) -> Page[InventarioFisicoOut]:
-    items, total = await inventario_fisico_repo.list_filtrado(
-        db, page=page, page_size=page_size, almacen_id=almacen_id, estado=estado
-    )
+    if current.acceso_todos_almacenes:
+        items, total = await inventario_fisico_repo.list_filtrado(
+            db, page=page, page_size=page_size, almacen_id=almacen_id, estado=estado
+        )
+    else:
+        items, total = await inventario_fisico_repo.list_filtrado(
+            db, page=page, page_size=page_size, almacen_ids=resolver_almacenes_visibles(current, almacen_id), estado=estado
+        )
     return Page(items=items, total=total, page=page, page_size=page_size)
 
 
@@ -31,11 +42,12 @@ async def listar_inventarios_fisicos(
 async def obtener_inventario_fisico(
     inventario_fisico_id: int,
     db: AsyncSession = Depends(get_db),
-    _current: CurrentUser = Depends(get_current_user),
+    current: CurrentUser = Depends(get_current_user),
 ) -> InventarioFisicoDetailOut:
     inventario = await inventario_fisico_repo.get_con_detalle(db, inventario_fisico_id)
     if inventario is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Inventario físico no encontrado")
+    verificar_acceso_almacen(current, inventario.almacen_id)
     return InventarioFisicoDetailOut.from_model(inventario)
 
 

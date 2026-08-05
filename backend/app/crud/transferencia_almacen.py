@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -29,6 +29,7 @@ class CRUDTransferenciaAlmacen(CRUDBase[TransferenciaAlmacen]):
         page_size: int = 20,
         almacen_origen_id: int | None = None,
         almacen_destino_id: int | None = None,
+        almacen_ids: list[int] | None = None,
         estado: str | None = None,
     ) -> tuple[list[TransferenciaAlmacen], int]:
         stmt = select(TransferenciaAlmacen)
@@ -36,6 +37,14 @@ class CRUDTransferenciaAlmacen(CRUDBase[TransferenciaAlmacen]):
             stmt = stmt.where(TransferenciaAlmacen.almacen_origen_id == almacen_origen_id)
         if almacen_destino_id is not None:
             stmt = stmt.where(TransferenciaAlmacen.almacen_destino_id == almacen_destino_id)
+        if almacen_ids is not None:
+            # RN-20 en lecturas: visible si el usuario tiene acceso a origen O destino.
+            stmt = stmt.where(
+                or_(
+                    TransferenciaAlmacen.almacen_origen_id.in_(almacen_ids),
+                    TransferenciaAlmacen.almacen_destino_id.in_(almacen_ids),
+                )
+            )
         if estado is not None:
             stmt = stmt.where(TransferenciaAlmacen.estado == estado)
 
