@@ -705,7 +705,8 @@ MySQL corriendo para testear lógica de negocio.
    el gate `ADMIN`/`LOGISTICA_CENTRAL` de `/reportes` en `nav.ts` es
    puramente visual (oculta el ítem del menú, no protege la URL ni la
    API); mismo criterio que los huecos de RN-20 ya registrados en
-   sesiones anteriores, fuera de alcance de esta sesión. Verificado de
+   sesiones anteriores, fuera de alcance de esta sesión (cerrado en la
+   Sesión 14). Verificado de
    punta a punta en el navegador contra una base SQLite descartable con
    el seed real (`python -m app.seed`, primera vez que una sesión de
    verificación usa el seed real en vez de reconstruir prerrequisitos a
@@ -938,6 +939,43 @@ MySQL corriendo para testear lógica de negocio.
    preexistente y ajeno de `test_reportes.py::test_reportes_completo`,
    ya documentado en la Sesión 12). `npx tsc --noEmit` + `npx eslint .`
    limpios sobre el repo completo.
+   ~~**Sesión 14 — Autorización de roles en Reportes/Auditoría**~~ ✅
+   implementado. Backend-only, sin cambios de frontend/schema/modelo —
+   cierra un límite documentado explícitamente desde la Sesión 10: los 3
+   endpoints de `reportes.py` y `GET /auditoria` solo tenían
+   `get_current_user`, sin `require_roles(...)`, así que cualquier rol
+   autenticado (`ALMACENERO`, `COCINA`, `PROVEEDOR`, etc.) podía llamarlos
+   directo por API pese a que `frontend/lib/nav.ts` oculta el ítem
+   "Reportes y auditoría" del sidebar salvo para `ADMIN`/
+   `LOGISTICA_CENTRAL` — ese gate era puramente visual. Fix: nueva
+   constante `ROLES_LECTURA = ("ADMIN", "LOGISTICA_CENTRAL")` (mismos
+   roles que `nav.ts`) en ambos archivos, reemplazando
+   `Depends(get_current_user)` por
+   `Depends(require_roles(*ROLES_LECTURA))` en los 4 endpoints
+   (`reporte_valorizacion_inventario`, `reporte_comparativo_consumo`,
+   `reporte_alertas`, `listar_auditoria`). A diferencia de catálogos de
+   uso transversal legítimo entre roles (ej. `GET /productos`, que sí
+   necesita `require_roles` solo en escritura), aquí se protegió también
+   la **lectura** porque estos son reportes agregados de todo el sistema
+   sin ningún caso de uso legítimo para roles operativos como
+   `ALMACENERO`/`COCINA`. Tests nuevos:
+   `test_reportes.py::test_reportes_requiere_rol_autorizado` (token
+   `COCINA` sin `require_roles` → 403 en los 3 endpoints; token
+   `LOGISTICA_CENTRAL` → 200/404 según el caso) y
+   `test_auditoria.py::test_auditoria_requiere_rol_autorizado` (mismo
+   patrón, `ALMACENERO` bloqueado, `LOGISTICA_CENTRAL` permitido) — ambos
+   con un nuevo helper `_headers_rol(rol)` local a cada archivo (mismo
+   patrón `create_access_token` ya usado en `test_cocina.py`/
+   `test_almacen.py`). Los tests preexistentes de ambos archivos solo
+   usaban `_headers_admin()`, así que no se rompió nada. Verificado además
+   con un login real contra un seed real: usuario `ALMACENERO` creado
+   desde `/administracion` → login real → `GET /reportes/alertas` y
+   `GET /auditoria` → 403 exacto ("El rol 'ALMACENERO' no tiene permiso
+   para esta operación"); con el token del admin, ambos → 200.
+   `pytest -q` completo: 24/25 en verde (el único rojo sigue siendo el
+   mismo flake preexistente de `test_reportes.py::test_reportes_completo`,
+   ajeno a esta sesión). `npx tsc --noEmit` + `npx eslint .` limpios (sin
+   cambios de frontend en esta sesión).
 
 ## 11. Cómo correr el proyecto
 

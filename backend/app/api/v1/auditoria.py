@@ -1,13 +1,17 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import CurrentUser, get_current_user
+from app.api.deps import CurrentUser, require_roles
 from app.crud.auditoria import auditoria_repo
 from app.db.session import get_db
 from app.schemas.auditoria import AuditoriaLogOut
 from app.schemas.common import Page
 
 router = APIRouter(prefix="/auditoria", tags=["Auditoría"])
+
+# Mismos roles que el gate de frontend/lib/nav.ts para "/reportes" (esta
+# pantalla vive ahí, pestaña "Auditoría").
+ROLES_LECTURA = ("ADMIN", "LOGISTICA_CENTRAL")
 
 
 @router.get("", response_model=Page[AuditoriaLogOut])
@@ -18,7 +22,7 @@ async def listar_auditoria(
     entidad_id: int | None = None,
     usuario_id: int | None = None,
     db: AsyncSession = Depends(get_db),
-    _current: CurrentUser = Depends(get_current_user),
+    _current: CurrentUser = Depends(require_roles(*ROLES_LECTURA)),
 ) -> Page[AuditoriaLogOut]:
     """Línea de tiempo de un documento (RN-08): filtrar por `entidad`
     (nombre de tabla, ej. `contrato`) + `entidad_id` para ver su historial."""

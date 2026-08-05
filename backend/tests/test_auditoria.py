@@ -7,7 +7,13 @@ tenido que llamarlo explícitamente.
 import pytest
 from httpx import AsyncClient
 
+from app.core.security import create_access_token
 from tests.test_compras import _headers_admin, client  # noqa: F401
+
+
+def _headers_rol(rol: str) -> dict:
+    token = create_access_token(usuario_id=3, rol=rol, almacenes=[], acceso_todos_almacenes=(rol == "LOGISTICA_CENTRAL"))
+    return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.mark.asyncio
@@ -51,3 +57,13 @@ async def test_auditoria_automatica_crear_y_actualizar(client: AsyncClient):
         "/api/v1/auditoria", headers=headers, params={"entidad": "producto", "entidad_id": producto_id + 999}
     )
     assert auditoria_otra_entidad.json()["items"] == []
+
+
+@pytest.mark.asyncio
+async def test_auditoria_requiere_rol_autorizado(client: AsyncClient):
+    """Mismo gate que /reportes (frontend/lib/nav.ts: ADMIN, LOGISTICA_CENTRAL)."""
+    bloqueado = await client.get("/api/v1/auditoria", headers=_headers_rol("ALMACENERO"))
+    assert bloqueado.status_code == 403, bloqueado.text
+
+    permitido = await client.get("/api/v1/auditoria", headers=_headers_rol("LOGISTICA_CENTRAL"))
+    assert permitido.status_code == 200, permitido.text

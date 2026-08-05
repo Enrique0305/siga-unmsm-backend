@@ -10,8 +10,14 @@ from datetime import date, timedelta
 import pytest
 from httpx import AsyncClient
 
+from app.core.security import create_access_token
 from tests.test_cocina import _headers_admin, _ingresar_stock, _preparar_contrato_con_producto, client  # noqa: F401
 from tests.test_inspeccion import _crear_guia_completa  # noqa: F401
+
+
+def _headers_rol(rol: str) -> dict:
+    token = create_access_token(usuario_id=3, rol=rol, almacenes=[], acceso_todos_almacenes=(rol == "LOGISTICA_CENTRAL"))
+    return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.mark.asyncio
@@ -174,3 +180,23 @@ async def test_reportes_completo(client: AsyncClient):
     assert obs["guia_remision_id"] == guia_2["guia_remision_id"]
     assert obs["cantidad_observada"] == pytest.approx(2.0)
     assert obs["acta_estado"] is None
+
+
+@pytest.mark.asyncio
+async def test_reportes_requiere_rol_autorizado(client: AsyncClient):
+    """Los 3 reportes son agregados de todo el sistema — el gate de
+    frontend/lib/nav.ts (ADMIN, LOGISTICA_CENTRAL) también debe cumplirse
+    en el backend, no solo ocultarse en el sidebar."""
+    sin_acceso = _headers_rol("COCINA")
+    con_acceso = _headers_rol("LOGISTICA_CENTRAL")
+
+    for path, params in (
+        ("/api/v1/reportes/valorizacion-inventario", {}),
+        ("/api/v1/reportes/comparativo-consumo", {"producto_id": 1, "fecha_inicio": "2026-01-01", "fecha_fin": "2026-01-31"}),
+        ("/api/v1/reportes/alertas", {}),
+    ):
+        bloqueado = await client.get(path, headers=sin_acceso, params=params)
+        assert bloqueado.status_code == 403, bloqueado.text
+
+        permitido = await client.get(path, headers=con_acceso, params=params)
+        assert permitido.status_code in (200, 404), permitido.text
