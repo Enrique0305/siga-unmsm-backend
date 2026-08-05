@@ -200,3 +200,68 @@ async def test_reportes_requiere_rol_autorizado(client: AsyncClient):
 
         permitido = await client.get(path, headers=con_acceso, params=params)
         assert permitido.status_code in (200, 404), permitido.text
+
+
+@pytest.mark.asyncio
+async def test_parametro_sistema_dias_vencimiento(client: AsyncClient):
+    """Sesión 18: 'Parámetros del sistema' (09 Administración) — se conecta
+    el umbral de días para "próximos a vencer" de /reportes/alertas, hoy
+    hardcodeado en 30."""
+    headers = _headers_admin()
+    ctx = await _preparar_contrato_con_producto(client, headers)
+
+    # lote que vence en 10 días
+    guia = await _crear_guia_completa(
+        client, headers, ctx, "OC-PARAM-SIS", "GR-PARAM-SIS", cantidad=40,
+        fecha_vencimiento=date.today() + timedelta(days=10),
+    )
+    await _ingresar_stock(client, headers, guia, cantidad=40)
+
+    # sin parámetro configurado: default 30 -> el lote (10 días) aparece
+    alertas_default = await client.get("/api/v1/reportes/alertas", headers=headers)
+    assert alertas_default.status_code == 200, alertas_default.text
+    assert len(alertas_default.json()["proximos_vencer"]) == 1
+
+    # GET es lectura abierta (ADMIN/LOGISTICA_CENTRAL, ya cubierto por
+    # ROLES_LECTURA de reportes.py); PUT/DELETE de parametros-sistema
+    # exigen ADMIN estrictamente, ni LOGISTICA_CENTRAL
+    headers_logistica = _headers_rol("LOGISTICA_CENTRAL")
+    put_bloqueado = await client.put(
+        "/api/v1/parametros-sistema",
+        headers=headers_logistica,
+        json={"clave": "alertas_dias_vencimiento", "valor": "5"},
+    )
+    assert put_bloqueado.status_code == 403, put_bloqueado.text
+
+    put_resp = await client.put(
+        "/api/v1/parametros-sistema",
+        headers=headers,
+        json={"clave": "alertas_dias_vencimiento", "valor": "5", "descripcion": "Ventana de vencimiento de alertas"},
+    )
+    assert put_resp.status_code == 200, put_resp.text
+    assert put_resp.json()["valor"] == "5"
+
+    # ahora el default es 5 -> el lote (10 días) ya no aparece sin query param
+    alertas_con_parametro = await client.get("/api/v1/reportes/alertas", headers=headers)
+    assert alertas_con_parametro.status_code == 200, alertas_con_parametro.text
+    assert alertas_con_parametro.json()["proximos_vencer"] == []
+
+    # el query param explícito sigue pudiendo pisar el parámetro configurado
+    alertas_override_explicito = await client.get(
+        "/api/v1/reportes/alertas", headers=headers, params={"dias_vencimiento": 30}
+    )
+    assert len(alertas_override_explicito.json()["proximos_vencer"]) == 1
+
+    lista = await client.get("/api/v1/parametros-sistema", headers=headers_logistica)
+    assert lista.status_code == 200, lista.text
+    assert any(p["clave"] == "alertas_dias_vencimiento" for p in lista.json())
+
+    delete_bloqueado = await client.delete("/api/v1/parametros-sistema/alertas_dias_vencimiento", headers=headers_logistica)
+    assert delete_bloqueado.status_code == 403
+
+    delete_resp = await client.delete("/api/v1/parametros-sistema/alertas_dias_vencimiento", headers=headers)
+    assert delete_resp.status_code == 204, delete_resp.text
+
+    # eliminado el parámetro, vuelve al default de 30
+    alertas_tras_eliminar = await client.get("/api/v1/reportes/alertas", headers=headers)
+    assert len(alertas_tras_eliminar.json()["proximos_vencer"]) == 1

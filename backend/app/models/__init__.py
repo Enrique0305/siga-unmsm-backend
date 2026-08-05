@@ -77,3 +77,4 @@ from app.models.pagos import (  # noqa: F401
     Penalidad,
 )
 from app.models.auditoria import AuditoriaLog  # noqa: F401
+from app.models.sistema import ParametroSistema  # noqa: F401

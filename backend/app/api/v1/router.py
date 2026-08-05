@@ -16,6 +16,7 @@ from app.api.v1 import (
     movimientos_almacen,
     notas_salida,
     ordenes_compra,
+    parametros_sistema,
     parametros_stock,
     pedidos_semanales,
     penalidades,
@@ -63,6 +64,7 @@ api_router.include_router(penalidades.router)
 api_router.include_router(informes_conformidad.router)
 api_router.include_router(auditoria.router)
 api_router.include_router(reportes.router)
+api_router.include_router(parametros_sistema.router)
 
 # Backend completo (Módulos 1 a 5 + Reportes/auditoría transversal,
 # sección 10 de CLAUDE.md). Queda pendiente el Frontend Next.js.

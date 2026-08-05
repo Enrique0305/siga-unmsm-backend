@@ -8,11 +8,11 @@ export default async function AlertasPage({
 }: PageProps<"/reportes/alertas">) {
   const params = await searchParams;
   const almacenId = typeof params.almacen_id === "string" ? params.almacen_id : "";
-  const diasVencimiento = typeof params.dias_vencimiento === "string" ? params.dias_vencimiento : "30";
+  const diasVencimiento = typeof params.dias_vencimiento === "string" ? params.dias_vencimiento : "";
 
   const query = new URLSearchParams();
   if (almacenId) query.set("almacen_id", almacenId);
-  query.set("dias_vencimiento", diasVencimiento);
+  if (diasVencimiento) query.set("dias_vencimiento", diasVencimiento);
 
   const [almacenes, alertas] = await Promise.all([
     serverFetch<PageAlmacenOut>("/almacenes?page_size=100"),
@@ -37,6 +37,7 @@ export default async function AlertasPage({
           paramName="dias_vencimiento"
           label="Días para vencimiento"
           options={[
+            { value: "", label: "Predeterminado del sistema" },
             { value: "7", label: "7 días" },
             { value: "15", label: "15 días" },
             { value: "30", label: "30 días" },

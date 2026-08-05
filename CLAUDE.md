@@ -697,12 +697,14 @@ MySQL corriendo para testear lógica de negocio.
    solo lectura (categorías de alimento, unidades de medida, sedes,
    centros de consumo — los 4 endpoints de `catalogos.py` son GET-only,
    confirmado en el código). **"Parámetros del sistema"** (tercer punto de
-   "09 Administración" en el diseño) **no se construyó — no existe ningún
-   modelo ni tabla para eso en todo el backend** (grep sobre `models/`,
-   `schemas/`, `api/`, sin resultados), documentado como límite explícito
-   (a diferencia de `almacen_producto_parametro`, cerrado en la
-   Sesión 17, este no tiene ni siquiera una tabla en el esquema — sería
-   una sesión de alcance mayor, no solo mapear algo que ya existía).
+   "09 Administración" en el diseño) **no se construyó en esta sesión —
+   no existía ningún modelo ni tabla para eso en todo el backend** (grep
+   sobre `models/`, `schemas/`, `api/`, sin resultados), documentado como
+   límite explícito (a diferencia de `almacen_producto_parametro`,
+   cerrado en la Sesión 17, este no tenía ni siquiera una tabla en el
+   esquema — sería una sesión de alcance mayor, no solo mapear algo que
+   ya existía); **cerrado en la Sesión 18** (tabla `parametro_sistema`
+   nueva + pantalla `/administracion/parametros`).
    **Límite de alcance no resuelto
    aquí**: ni los 3 endpoints de `reportes.py` ni `GET /auditoria` tienen
    `require_roles(...)` en el backend — solo `get_current_user` — así que
@@ -1158,6 +1160,96 @@ MySQL corriendo para testear lógica de negocio.
    API que la fila ya no existe) → `/reportes/alertas` sigue renderizando
    sin errores. `npx tsc --noEmit` + `npx eslint .` + `npx next build`
    limpios (59 rutas, incluida la nueva).
+   ~~**Sesión 18 — Parámetros del sistema (Administración)**~~ ✅
+   implementado. Cierra el último punto documentado como "no construido"
+   de "09 Administración" (sección 10, Sesión 10) — a diferencia de
+   `almacen_producto_parametro` (Sesión 17), esta tabla **no existía en
+   absoluto** en `01_schema.sql`, así que fue la primera sesión desde la
+   12 en agregar una tabla nueva de cero (con su parche histórico) en vez
+   de mapear algo que ya existía.
+   **Alcance investigado antes de planear**: el diseño original solo
+   menciona "Parámetros del sistema" como bullet, sin ninguna
+   especificación — se buscaron candidatos reales de umbrales hardcodeados
+   (`grep` sobre `app/`) y se encontraron tres: `Contrato.alerta_vigencia`
+   (30 días), `ProductoContratado.alerta_saldo` (15%) y `dias_vencimiento`
+   de `/reportes/alertas` (30, Sesión 10). Los dos primeros son
+   `@property` de SQLAlchemy puros, serializados por Pydantic vía
+   `from_attributes=True` automático sin `db` en scope — conectarlos
+   habría exigido convertir esa serialización automática en
+   `from_model(obj, umbral)` explícito en ~4-6 endpoints de
+   `contratos.py`, un refactor aparte con su propio riesgo. Se decidió,
+   de forma consciente y documentada (no silenciosa), conectar solo
+   `dias_vencimiento` (un query param FastAPI plano, sin ese problema) y
+   dejar los otros dos como límite explícito — mismo criterio que
+   `ActaObservacion.plazo_vencido` (RN-11), idéntico patrón de `@property`.
+   **Esquema**: tabla nueva `parametro_sistema` (`clave` VARCHAR(60) PK,
+   `valor` VARCHAR(255), `descripcion` opcional, `actualizado_en`
+   DATETIME con `onupdate=func.now()` solo a nivel ORM — mismo patrón que
+   `stock_almacen_producto.actualizado_en`, confirmado antes de escribirlo
+   leyendo esa columna en `01_schema.sql` — y `actualizado_por_id` FK
+   opcional a `usuario`), agregada a `db/init/01_schema.sql` +
+   `db/patches_historicos/12_parche_parametro_sistema.sql` (mismo patrón
+   que `11_parche_usuario_proveedor.sql`, sigue el precedente de no usar
+   Alembic para esto, ya justificado en la Sesión 12).
+   **Backend**: `models/sistema.py` (nuevo, un solo modelo — mismo
+   criterio de `models/auditoria.py` para un concern transversal),
+   `schemas/sistema.py` (`ParametroSistemaIn`/`Out`), `crud/parametro_sistema.py`
+   (funciones sueltas: `list_todos`, `obtener`, `upsert`, `eliminar`, y
+   `obtener_entero(db, clave, default)` — nunca lanza, castea a `int` o
+   devuelve el default, pensado para ser reutilizado por cualquier
+   consumidor futuro sin que tenga que manejar el caso "no configurado"),
+   `api/v1/parametros_sistema.py` (`GET ""` sin paginar — mismo precedente
+   que `/catalogos/roles`/`/sedes`, cualquier autenticado; `PUT ""` y
+   `DELETE "/{clave}"` solo `ADMIN`, ni `LOGISTICA_CENTRAL` — respaldado
+   por la fila de roles del diseño original: *"Administrador del sistema |
+   Todos (config.) | Catálogos, usuarios, roles, **parámetros**,
+   auditoría"*). `reportes.py::reporte_alertas` — `dias_vencimiento` pasa
+   de `int = 30` a `int | None = None`; si es `None`, se resuelve con
+   `await obtener_entero(db, "alertas_dias_vencimiento", default=30)`; el
+   query param explícito sigue pudiendo pisarlo.
+   **Frontend**: `components/administracion/ModuleTabs.tsx` gana un 4º
+   tab ("Parámetros"); `ParametroSistemaForm.tsx`/
+   `EliminarParametroSistemaButton.tsx`/`administracion/parametros/page.tsx`
+   replican el patrón exacto de `ParametroStockForm.tsx`/
+   `EliminarParametroButton.tsx`/`almacenes/parametros/page.tsx` de la
+   Sesión 17 (`GET /parametros-sistema` es un array plano, no
+   `Page<...>` — no se generó `PageParametroSistemaOut`, coherente con
+   que tampoco existe para `/catalogos/roles` — así que la página no
+   pagina, solo lista). El `DELETE` de este módulo también responde 204 y
+   se benefició automáticamente del fix del proxy ya aplicado en la
+   Sesión 17, sin tocar `route.ts` de nuevo.
+   **Hallazgo real durante la verificación en el navegador** (no en los
+   tests, que sí pasaban): `reportes/alertas/page.tsx` (Sesión 10) forzaba
+   `dias_vencimiento = "30"` en el servidor cuando no había query param en
+   la URL, y **siempre** lo mandaba explícito al backend
+   (`query.set("dias_vencimiento", diasVencimiento)`) — es decir, el
+   nuevo default configurable de `parametro_sistema` nunca se habría
+   alcanzado desde esa pantalla real, aunque el backend y el test lo
+   probaran correctamente de forma aislada. Corregido en la misma sesión
+   (no se dejó como límite, porque conectar exactamente esa pantalla era
+   el objetivo explícito del plan): `diasVencimiento` ahora es `""` si no
+   hay query param, el `URLSearchParams` solo agrega `dias_vencimiento`
+   si el usuario lo eligió explícitamente, y el `SelectFilter` ganó una
+   opción `"Predeterminado del sistema"` (`value=""`) al inicio de la
+   lista para reflejar ese estado.
+   **Test nuevo**: `test_reportes.py::test_parametro_sistema_dias_vencimiento`
+   — sin parámetro configurado, un lote a 10 días de vencer aparece con la
+   ventana de 30 por defecto; `PUT /parametros-sistema` con
+   `alertas_dias_vencimiento=5` por un rol no-ADMIN (`LOGISTICA_CENTRAL`)
+   → 403; como ADMIN → 200; la misma consulta sin query param ahora
+   excluye ese lote (10 > 5); `?dias_vencimiento=30` explícito lo sigue
+   trayendo (el override de query sigue funcionando); `GET` con cualquier
+   rol → 200; `DELETE` no-ADMIN → 403, ADMIN → 204; tras borrar, vuelve al
+   comportamiento de 30 días. `pytest -q` completo: 31/31 en verde.
+   Verificado de punta a punta en el navegador contra una base SQLite
+   descartable con el seed real: login admin → `/administracion/parametros`
+   → crear `alertas_dias_vencimiento=5` (`PUT`, 200) → aparece en la
+   tabla → `/reportes/alertas` carga con la nueva opción "Predeterminado
+   del sistema" sin forzar 30 → eliminar el parámetro (`DELETE`, 204,
+   confirmado en Network que reutiliza el fix de proxy de la Sesión 17
+   sin tocarlo) → la tabla vuelve a "No hay parámetros configurados". `npx
+   tsc --noEmit` + `npx eslint .` + `npx next build` limpios (60 rutas,
+   incluida `/administracion/parametros`).
 
 ## 11. Cómo correr el proyecto
 

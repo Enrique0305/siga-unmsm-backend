@@ -6,7 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type ReporteAlertasApiV1ReportesAlertasGetParams = {
-almacen_id?: number | null;
-dias_vencimiento?: number | null;
-};
+export interface ParametroSistemaOut {
+  clave: string;
+  valor: string;
+  descripcion: string | null;
+  actualizado_en: string;
+  actualizado_por_id: number | null;
+}

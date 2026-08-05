@@ -153,6 +153,8 @@ export * from './pageStockAlmacenProductoOut';
 export * from './pageTransferenciaAlmacenOut';
 export * from './pageUbicacionInternaOut';
 export * from './pageUsuarioOut';
+export * from './parametroSistemaIn';
+export * from './parametroSistemaOut';
 export * from './pedidoSemanalCreate';
 export * from './pedidoSemanalOut';
 export * from './penalidadCreate';

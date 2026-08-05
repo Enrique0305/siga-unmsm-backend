@@ -7,6 +7,7 @@ const TABS = [
   { href: "/administracion", label: "Usuarios" },
   { href: "/administracion/productos", label: "Productos" },
   { href: "/administracion/catalogos", label: "Catálogos" },
+  { href: "/administracion/parametros", label: "Parámetros" },
 ];
 
 export function ModuleTabs() {

@@ -343,7 +343,9 @@ export const getReporteAlertasApiV1ReportesAlertasGetUrl = (params?: ReporteAler
 /**
  * Stock bajo (vs. producto.stock_minimo_referencial), próximos a vencer
  * (guia_remision_detalle.fecha_vencimiento de líneas ya ingresadas) y
- * líneas OBSERVADO sin acta resuelta.
+ * líneas OBSERVADO sin acta resuelta. Si no se pasa dias_vencimiento por
+ * query, se resuelve desde parametro_sistema (clave
+ * "alertas_dias_vencimiento", Sesión 18) — 30 si tampoco está configurado.
  * @summary Reporte Alertas
  */
 export const reporteAlertasApiV1ReportesAlertasGet = async (params?: ReporteAlertasApiV1ReportesAlertasGetParams, options?: Parameters<typeof apiFetch>[1]): Promise<reporteAlertasApiV1ReportesAlertasGetResponse> => {

@@ -141,6 +141,16 @@ CREATE TABLE auditoria_log (
     CONSTRAINT fk_auditoria_log_usuario_id FOREIGN KEY (usuario_id) REFERENCES usuario(usuario_id)
 );
 
+-- [ADMINISTRACIÓN] Parámetros del sistema, clave-valor genérico (Sesión 18)
+CREATE TABLE parametro_sistema (
+    clave                VARCHAR(60) PRIMARY KEY,
+    valor                VARCHAR(255) NOT NULL,
+    descripcion          VARCHAR(255),
+    actualizado_en       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    actualizado_por_id   INT,
+    CONSTRAINT fk_parametro_sistema_actualizado_por_id FOREIGN KEY (actualizado_por_id) REFERENCES usuario(usuario_id)
+);
+
 CREATE TABLE adjunto (
     adjunto_id           BIGINT AUTO_INCREMENT PRIMARY KEY,
     entidad              VARCHAR(80) NOT NULL,

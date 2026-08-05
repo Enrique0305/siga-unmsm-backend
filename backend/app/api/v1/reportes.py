@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import CurrentUser, require_roles
+from app.crud.parametro_sistema import obtener_entero
 from app.crud.reportes import alertas_almacen, comparativo_consumo, valorizacion_inventario
 from app.db.session import get_db
 from app.schemas.reportes import AlertasAlmacenOut, ComparativoConsumoOut, ValorizacionAlmacenOut
@@ -47,12 +48,16 @@ async def reporte_comparativo_consumo(
 @router.get("/alertas", response_model=AlertasAlmacenOut)
 async def reporte_alertas(
     almacen_id: int | None = None,
-    dias_vencimiento: int = 30,
+    dias_vencimiento: int | None = None,
     db: AsyncSession = Depends(get_db),
     _current: CurrentUser = Depends(require_roles(*ROLES_LECTURA)),
 ) -> AlertasAlmacenOut:
     """Stock bajo (vs. producto.stock_minimo_referencial), próximos a vencer
     (guia_remision_detalle.fecha_vencimiento de líneas ya ingresadas) y
-    líneas OBSERVADO sin acta resuelta."""
+    líneas OBSERVADO sin acta resuelta. Si no se pasa dias_vencimiento por
+    query, se resuelve desde parametro_sistema (clave
+    "alertas_dias_vencimiento", Sesión 18) — 30 si tampoco está configurado."""
+    if dias_vencimiento is None:
+        dias_vencimiento = await obtener_entero(db, "alertas_dias_vencimiento", default=30)
     resultado = await alertas_almacen(db, almacen_id=almacen_id, dias_vencimiento=dias_vencimiento)
     return AlertasAlmacenOut(**resultado)
