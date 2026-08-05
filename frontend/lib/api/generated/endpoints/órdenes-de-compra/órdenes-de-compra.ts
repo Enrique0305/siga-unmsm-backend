@@ -27,6 +27,8 @@ import type {
 import type {
   AutorizacionExcedenteIn,
   AutorizacionExcedenteOut,
+  CierreMensualApiV1OrdenesCompraCierreMensualGetParams,
+  CierreMensualOut,
   HTTPValidationError,
   ListarOrdenesCompraApiV1OrdenesCompraGetParams,
   OrdenCompraCreate,
@@ -276,7 +278,137 @@ export const useCrearOrdenCompraApiV1OrdenesCompraPost = <TError = HTTPValidatio
       > => {
       return useMutation(getCrearOrdenCompraApiV1OrdenesCompraPostMutationOptions(options), queryClient);
     }
-    export type obtenerOrdenCompraApiV1OrdenesCompraOrdenCompraIdGetResponse200 = {
+    export type cierreMensualApiV1OrdenesCompraCierreMensualGetResponse200 = {
+  data: CierreMensualOut
+  status: 200
+}
+
+export type cierreMensualApiV1OrdenesCompraCierreMensualGetResponse422 = {
+  data: HTTPValidationError
+  status: 422
+}
+
+export type cierreMensualApiV1OrdenesCompraCierreMensualGetResponseSuccess = (cierreMensualApiV1OrdenesCompraCierreMensualGetResponse200) & {
+  headers: Headers;
+};
+export type cierreMensualApiV1OrdenesCompraCierreMensualGetResponseError = (cierreMensualApiV1OrdenesCompraCierreMensualGetResponse422) & {
+  headers: Headers;
+};
+
+export type cierreMensualApiV1OrdenesCompraCierreMensualGetResponse = (cierreMensualApiV1OrdenesCompraCierreMensualGetResponseSuccess | cierreMensualApiV1OrdenesCompraCierreMensualGetResponseError)
+
+export const getCierreMensualApiV1OrdenesCompraCierreMensualGetUrl = (params: CierreMensualApiV1OrdenesCompraCierreMensualGetParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/ordenes-compra/cierre-mensual?${stringifiedParams}` : `/api/v1/ordenes-compra/cierre-mensual`
+}
+
+/**
+ * RN-10: gate informativo, sin efectos secundarios — no hay una
+ * entidad "periodo" en el esquema que cerrar. Bloquea (listo_para_cierre
+ * en False) si alguna OC del periodo sigue sin llegar a un estado
+ * terminal (ANULADA/CERRADO/PENALIZADO), y las lista.
+ * @summary Cierre Mensual
+ */
+export const cierreMensualApiV1OrdenesCompraCierreMensualGet = async (params: CierreMensualApiV1OrdenesCompraCierreMensualGetParams, options?: Parameters<typeof apiFetch>[1]): Promise<cierreMensualApiV1OrdenesCompraCierreMensualGetResponse> => {
+
+  return apiFetch<cierreMensualApiV1OrdenesCompraCierreMensualGetResponse>(getCierreMensualApiV1OrdenesCompraCierreMensualGetUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getCierreMensualApiV1OrdenesCompraCierreMensualGetQueryKey = (params?: CierreMensualApiV1OrdenesCompraCierreMensualGetParams,) => {
+    return [
+    `/api/v1/ordenes-compra/cierre-mensual`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getCierreMensualApiV1OrdenesCompraCierreMensualGetQueryOptions = <TData = Awaited<ReturnType<typeof cierreMensualApiV1OrdenesCompraCierreMensualGet>>, TError = HTTPValidationError>(params: CierreMensualApiV1OrdenesCompraCierreMensualGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof cierreMensualApiV1OrdenesCompraCierreMensualGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getCierreMensualApiV1OrdenesCompraCierreMensualGetQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof cierreMensualApiV1OrdenesCompraCierreMensualGet>>> = ({ signal }) => cierreMensualApiV1OrdenesCompraCierreMensualGet(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof cierreMensualApiV1OrdenesCompraCierreMensualGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type CierreMensualApiV1OrdenesCompraCierreMensualGetQueryResult = NonNullable<Awaited<ReturnType<typeof cierreMensualApiV1OrdenesCompraCierreMensualGet>>>
+export type CierreMensualApiV1OrdenesCompraCierreMensualGetQueryError = HTTPValidationError
+
+
+export function useCierreMensualApiV1OrdenesCompraCierreMensualGet<TData = Awaited<ReturnType<typeof cierreMensualApiV1OrdenesCompraCierreMensualGet>>, TError = HTTPValidationError>(
+ params: CierreMensualApiV1OrdenesCompraCierreMensualGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof cierreMensualApiV1OrdenesCompraCierreMensualGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof cierreMensualApiV1OrdenesCompraCierreMensualGet>>,
+          TError,
+          Awaited<ReturnType<typeof cierreMensualApiV1OrdenesCompraCierreMensualGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useCierreMensualApiV1OrdenesCompraCierreMensualGet<TData = Awaited<ReturnType<typeof cierreMensualApiV1OrdenesCompraCierreMensualGet>>, TError = HTTPValidationError>(
+ params: CierreMensualApiV1OrdenesCompraCierreMensualGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof cierreMensualApiV1OrdenesCompraCierreMensualGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof cierreMensualApiV1OrdenesCompraCierreMensualGet>>,
+          TError,
+          Awaited<ReturnType<typeof cierreMensualApiV1OrdenesCompraCierreMensualGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useCierreMensualApiV1OrdenesCompraCierreMensualGet<TData = Awaited<ReturnType<typeof cierreMensualApiV1OrdenesCompraCierreMensualGet>>, TError = HTTPValidationError>(
+ params: CierreMensualApiV1OrdenesCompraCierreMensualGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof cierreMensualApiV1OrdenesCompraCierreMensualGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Cierre Mensual
+ */
+
+export function useCierreMensualApiV1OrdenesCompraCierreMensualGet<TData = Awaited<ReturnType<typeof cierreMensualApiV1OrdenesCompraCierreMensualGet>>, TError = HTTPValidationError>(
+ params: CierreMensualApiV1OrdenesCompraCierreMensualGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof cierreMensualApiV1OrdenesCompraCierreMensualGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getCierreMensualApiV1OrdenesCompraCierreMensualGetQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export type obtenerOrdenCompraApiV1OrdenesCompraOrdenCompraIdGetResponse200 = {
   data: OrdenCompraDetailOut
   status: 200
 }

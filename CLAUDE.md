@@ -1407,7 +1407,7 @@ MySQL corriendo para testear lógica de negocio.
    **Sin cambios de frontend** — una futura sesión podría agregar una
    pantalla para `/notificaciones`, documentado como próximo paso posible,
    no parte de esta sesión (el objetivo era cerrar el hueco de
-   automatización backend).
+   automatización backend). **Cerrado en la Sesión 21.**
    **Test nuevo**: `tests/test_jobs.py` (primer archivo que llama
    funciones de `core/jobs.py` directo con una `AsyncSession` cruda en vez
    de pasar por `httpx.AsyncClient` — estos jobs no tienen, ni deben
@@ -1431,6 +1431,46 @@ MySQL corriendo para testear lógica de negocio.
    `orden_compra` → job de RN-12 corrido igual, confirmado que crea las 2
    notificaciones esperadas → `GET /ordenes-compra/cierre-mensual` con la
    OC ya en estado terminal → `listo_para_cierre=true`.
+   ~~**Sesión 21 — Pantalla /reportes/notificaciones**~~ ✅ implementado.
+   Cierra el único punto pendiente que quedó documentado tras la Sesión
+   20: el backend de RN-12 (`Notificacion`, `GET /notificaciones` +
+   `PATCH .../leida`) se había implementado completo pero sin pantalla —
+   con esto no queda ningún otro hueco grande documentado en CLAUDE.md.
+   Frontend-only, sesión pequeña. **Ubicación**: 5º tab dentro de
+   `/reportes` (`components/reportes/ModuleTabs.tsx`), no un ítem de nav
+   nuevo — mismos roles exactos que el resto de esa sección (`ADMIN,
+   LOGISTICA_CENTRAL`), y es donde ya vive `/reportes/alertas`, la
+   pantalla más parecida en propósito. `app/(dashboard)/reportes/
+   notificaciones/page.tsx` (nuevo, server component, mismo esqueleto que
+   `reportes/auditoria/page.tsx`): tabla tipo/mensaje/fecha/estado +
+   `<SelectFilter>` por `leida` (Todas/No leídas/Leídas) +
+   `<Badge>` de tipo (`danger` para `CONTRATO_SALDO`, `warning` para
+   `CONTRATO_VIGENCIA`) y de estado (`primary` "Nueva" / `neutral`
+   "Leída"). `components/reportes/MarcarLeidaButton.tsx` (nuevo, client
+   component) — mismo patrón que `EliminarParametroButton.tsx` (Sesión
+   17) pero con el hook `PATCH` generado en vez de `DELETE`; solo se
+   muestra en filas no leídas. **Sin formulario de creación** — las
+   notificaciones solo las crea el job de la Sesión 20, nunca un
+   usuario, mismo criterio que "Crear acta"/informes de conformidad (sin
+   pantalla "nueva"). Primera vez que se regenera el cliente orval desde
+   la Sesión 20 — ese backend nunca corrió `generate:api`, así que los
+   hooks de `/notificaciones` no existían todavía en
+   `lib/api/generated/`; confirmado el nombre exacto generado
+   (`useMarcarNotificacionLeidaApiV1NotificacionesNotificacionIdLeidaPatch`)
+   antes de escribir el botón. `npx tsc --noEmit` + `npx eslint .` + `npx
+   next build` limpios (61 rutas, incluida `/reportes/notificaciones`).
+   Verificado de punta a punta en el navegador contra un backend
+   descartable: login admin → contrato con `fecha_fin`/saldo dentro de
+   umbrales configurados (`PUT /parametros-sistema`, mismo mecanismo de
+   la Sesión 19) → `core/jobs.py::procesar_alertas_contratos` corrido
+   directo contra la misma base (mismo mecanismo de verificación manual
+   de la Sesión 20, sin esperar al cron) → `/reportes/notificaciones`
+   lista las 2 notificaciones generadas (`CONTRATO_VIGENCIA` con badge
+   warning, `CONTRATO_SALDO` con badge danger, ambas "Nueva") → clic en
+   "Marcar leída" → la fila pasa a "Leída" sin botón → filtro "No
+   leídas" ya no la incluye. Backend sin cambios en esta sesión —
+   `pytest -q` completo sigue en 36/36 (verificación de no-regresión, no
+   se tocó ningún archivo `.py`).
 
 ## 11. Cómo correr el proyecto
 

@@ -8,6 +8,7 @@ const TABS = [
   { href: "/reportes/comparativo", label: "Comparativo de consumo" },
   { href: "/reportes/alertas", label: "Alertas" },
   { href: "/reportes/auditoria", label: "Auditoría" },
+  { href: "/reportes/notificaciones", label: "Notificaciones" },
 ];
 
 export function ModuleTabs() {
