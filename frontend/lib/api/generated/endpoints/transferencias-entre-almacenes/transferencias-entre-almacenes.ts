@@ -90,6 +90,9 @@ export const getListarTransferenciasApiV1TransferenciasGetUrl = (params?: Listar
 }
 
 /**
+ * RN-20 en lecturas: visible si el usuario tiene acceso a origen O
+ * destino (política ANY, ver Sesión 15) — no se usa `resolver_almacenes_
+ * visibles` porque hay dos columnas de almacén, no una.
  * @summary Listar Transferencias
  */
 export const listarTransferenciasApiV1TransferenciasGet = async (params?: ListarTransferenciasApiV1TransferenciasGetParams, options?: Parameters<typeof apiFetch>[1]): Promise<listarTransferenciasApiV1TransferenciasGetResponse> => {

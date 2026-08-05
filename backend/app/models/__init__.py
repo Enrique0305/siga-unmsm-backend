@@ -52,6 +52,7 @@ from app.models.inspeccion import (  # noqa: F401
 )
 from app.models.inventario import (  # noqa: F401
     AjusteInventario,
+    AlmacenProductoParametro,
     BinCardMovimiento,
     Devolucion,
     IngresoAlmacen,

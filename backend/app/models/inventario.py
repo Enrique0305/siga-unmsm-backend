@@ -66,6 +66,21 @@ class StockAlmacenProducto(Base):
     producto: Mapped["Producto"] = relationship(lazy="joined")
 
 
+class AlmacenProductoParametro(Base):
+    """Override de stock_minimo específico por almacén (Sesión 17) — cuando
+    no existe, /reportes/alertas usa Producto.stock_minimo_referencial
+    (global) como umbral de "stock bajo". Ver crud/reportes.py::_stock_bajo."""
+
+    __tablename__ = "almacen_producto_parametro"
+
+    almacen_id: Mapped[int] = mapped_column(ForeignKey("almacen.almacen_id"), primary_key=True)
+    producto_id: Mapped[int] = mapped_column(ForeignKey("producto.producto_id"), primary_key=True)
+    stock_minimo: Mapped[float]
+
+    almacen: Mapped["Almacen"] = relationship(lazy="joined")
+    producto: Mapped["Producto"] = relationship(lazy="joined")
+
+
 class KardexMovimiento(Base):
     """Insert-only (RN-06): nunca se hace UPDATE/DELETE; toda corrección es un
     nuevo movimiento de ajuste. Ver crud/stock.py::registrar_movimiento."""

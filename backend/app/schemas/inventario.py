@@ -41,6 +41,35 @@ class StockAlmacenProductoOut(BaseModel):
         )
 
 
+# ---------------------------------------------- parámetro de stock mínimo
+class AlmacenProductoParametroIn(BaseModel):
+    almacen_id: int
+    producto_id: int
+    stock_minimo: float = Field(gt=0)
+
+
+class AlmacenProductoParametroOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    almacen_id: int
+    almacen_codigo: str
+    producto_id: int
+    producto_codigo: str
+    producto_nombre: str
+    stock_minimo: float
+
+    @classmethod
+    def from_model(cls, obj) -> "AlmacenProductoParametroOut":
+        return cls(
+            almacen_id=obj.almacen_id,
+            almacen_codigo=obj.almacen.codigo,
+            producto_id=obj.producto_id,
+            producto_codigo=obj.producto.codigo,
+            producto_nombre=obj.producto.nombre,
+            stock_minimo=obj.stock_minimo,
+        )
+
+
 class KardexMovimientoOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

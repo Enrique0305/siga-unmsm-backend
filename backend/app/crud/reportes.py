@@ -9,7 +9,12 @@ from app.models.compras import GuiaRemision, GuiaRemisionDetalle, OrdenCompra, O
 from app.models.contratos import ProductoContratado
 from app.models.dosificacion import DosificacionDetalle
 from app.models.inspeccion import ActaObservacion, InspeccionDetalle
-from app.models.inventario import IngresoAlmacen, IngresoAlmacenDetalle, StockAlmacenProducto
+from app.models.inventario import (
+    AlmacenProductoParametro,
+    IngresoAlmacen,
+    IngresoAlmacenDetalle,
+    StockAlmacenProducto,
+)
 from app.models.organizacion import Almacen
 from app.models.planificacion import MenuDia
 
@@ -117,11 +122,21 @@ async def comparativo_consumo(db: AsyncSession, producto_id: int, fecha_inicio: 
 
 
 async def _stock_bajo(db: AsyncSession, almacen_id: int | None) -> list[dict]:
-    stmt = select(StockAlmacenProducto, Producto).join(
-        Producto, StockAlmacenProducto.producto_id == Producto.producto_id
-    ).where(
-        Producto.stock_minimo_referencial.is_not(None),
-        StockAlmacenProducto.stock_fisico < Producto.stock_minimo_referencial,
+    """Umbral efectivo (Sesión 17): el override de almacen_producto_parametro
+    manda si existe; si no, cae al stock_minimo_referencial global del
+    producto. El campo de salida sigue llamándose stock_minimo_referencial
+    por compatibilidad con el schema/frontend ya existentes, pero ahora
+    refleja ese umbral efectivo, no siempre el global."""
+    umbral = func.coalesce(AlmacenProductoParametro.stock_minimo, Producto.stock_minimo_referencial)
+    stmt = (
+        select(StockAlmacenProducto, Producto, umbral.label("umbral"))
+        .join(Producto, StockAlmacenProducto.producto_id == Producto.producto_id)
+        .outerjoin(
+            AlmacenProductoParametro,
+            (AlmacenProductoParametro.almacen_id == StockAlmacenProducto.almacen_id)
+            & (AlmacenProductoParametro.producto_id == StockAlmacenProducto.producto_id),
+        )
+        .where(umbral.is_not(None), StockAlmacenProducto.stock_fisico < umbral)
     )
     if almacen_id is not None:
         stmt = stmt.where(StockAlmacenProducto.almacen_id == almacen_id)
@@ -134,9 +149,9 @@ async def _stock_bajo(db: AsyncSession, almacen_id: int | None) -> list[dict]:
             "producto_codigo": producto.codigo,
             "producto_nombre": producto.nombre,
             "stock_fisico": stock.stock_fisico,
-            "stock_minimo_referencial": producto.stock_minimo_referencial,
+            "stock_minimo_referencial": umbral_efectivo,
         }
-        for stock, producto in filas
+        for stock, producto, umbral_efectivo in filas
     ]
 
 

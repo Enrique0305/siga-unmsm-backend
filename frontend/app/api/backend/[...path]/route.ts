@@ -91,7 +91,14 @@ async function handler(
     }
   }
 
-  const responseBody = await backendResponse.arrayBuffer();
+  // 204/205/304 no pueden llevar body (spec Fetch/Response) — construir
+  // NextResponse con un ArrayBuffer vacío igual revienta en tiempo de
+  // ejecución. Detectado en la Sesión 17: DELETE /parametros-stock es el
+  // primer endpoint de todo el backend que responde 204.
+  const responseBody =
+    backendResponse.status === 204 || backendResponse.status === 205 || backendResponse.status === 304
+      ? null
+      : await backendResponse.arrayBuffer();
   return new NextResponse(responseBody, {
     status: backendResponse.status,
     headers: {

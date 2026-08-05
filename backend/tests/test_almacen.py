@@ -302,3 +302,68 @@ async def test_rn20_lecturas_almacen(client: AsyncClient):
     # regresión: ADMIN sigue viendo todo
     assert len((await client.get("/api/v1/ingresos-almacen", headers=headers)).json()["items"]) == 2
     assert len((await client.get("/api/v1/inventarios-fisicos", headers=headers)).json()["items"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_parametro_stock_por_almacen(client: AsyncClient):
+    """Sesión 17: almacen_producto_parametro permite un umbral de stock
+    bajo distinto por almacén — sin override, /reportes/alertas usa el
+    stock_minimo_referencial global del producto."""
+    headers = _headers_admin()
+    ctx = await _preparar_contrato_con_producto(client, headers)
+    producto_id = ctx["producto_id"]
+
+    patch_resp = await client.patch(
+        f"/api/v1/productos/{producto_id}", headers=headers, json={"stock_minimo_referencial": 50}
+    )
+    assert patch_resp.status_code == 200, patch_resp.text
+
+    await _ingresar_stock_en_almacen(client, headers, ctx, "OC-PARAM-1", "GR-PARAM-1", "ING-PARAM-1", almacen_id=1)
+    await _ingresar_stock_en_almacen(client, headers, ctx, "OC-PARAM-2", "GR-PARAM-2", "ING-PARAM-2", almacen_id=2)
+    # ambos almacenes quedan con stock_fisico=40 (< 50 global) -> ambos
+    # deberían salir en stock_bajo hasta que el almacén 2 tenga su override
+
+    alertas_sin_override = await client.get("/api/v1/reportes/alertas", headers=headers)
+    assert alertas_sin_override.status_code == 200, alertas_sin_override.text
+    almacenes_bajo = {f["almacen_id"] for f in alertas_sin_override.json()["stock_bajo"]}
+    assert almacenes_bajo == {1, 2}
+
+    # RN-20: un ALMACENERO sin acceso al almacén 2 no puede fijar su parámetro
+    put_bloqueado = await client.put(
+        "/api/v1/parametros-stock",
+        headers=_headers_almacenero(almacenes=[1]),
+        json={"almacen_id": 2, "producto_id": producto_id, "stock_minimo": 10},
+    )
+    assert put_bloqueado.status_code == 403
+
+    put_resp = await client.put(
+        "/api/v1/parametros-stock",
+        headers=headers,
+        json={"almacen_id": 2, "producto_id": producto_id, "stock_minimo": 10},
+    )
+    assert put_resp.status_code == 200, put_resp.text
+    parametro = put_resp.json()
+    assert parametro["stock_minimo"] == pytest.approx(10.0)
+    assert parametro["producto_codigo"] == "P001"
+
+    alertas_con_override = await client.get("/api/v1/reportes/alertas", headers=headers)
+    almacenes_bajo_2 = {f["almacen_id"] for f in alertas_con_override.json()["stock_bajo"]}
+    assert almacenes_bajo_2 == {1}  # el almacén 2 ya no aparece: 40 >= 10
+
+    # listar filtra por almacén
+    lista_parametros = await client.get("/api/v1/parametros-stock", headers=headers, params={"almacen_id": 2})
+    assert lista_parametros.status_code == 200, lista_parametros.text
+    assert lista_parametros.json()["total"] == 1
+
+    # eliminar el override: el almacén 2 vuelve al umbral global
+    delete_bloqueado = await client.delete(
+        f"/api/v1/parametros-stock/2/{producto_id}", headers=_headers_almacenero(almacenes=[1])
+    )
+    assert delete_bloqueado.status_code == 403
+
+    delete_resp = await client.delete(f"/api/v1/parametros-stock/2/{producto_id}", headers=headers)
+    assert delete_resp.status_code == 204, delete_resp.text
+
+    alertas_tras_eliminar = await client.get("/api/v1/reportes/alertas", headers=headers)
+    almacenes_bajo_3 = {f["almacen_id"] for f in alertas_tras_eliminar.json()["stock_bajo"]}
+    assert almacenes_bajo_3 == {1, 2}

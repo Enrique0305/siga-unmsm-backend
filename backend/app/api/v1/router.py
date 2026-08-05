@@ -16,6 +16,7 @@ from app.api.v1 import (
     movimientos_almacen,
     notas_salida,
     ordenes_compra,
+    parametros_stock,
     pedidos_semanales,
     penalidades,
     planificacion,
@@ -52,6 +53,7 @@ api_router.include_router(actas_observacion.router)
 api_router.include_router(ubicaciones.router)
 api_router.include_router(ingresos_almacen.router)
 api_router.include_router(stock.router)
+api_router.include_router(parametros_stock.router)
 api_router.include_router(movimientos_almacen.router)
 api_router.include_router(inventarios_fisicos.router)
 api_router.include_router(transferencias_almacen.router)

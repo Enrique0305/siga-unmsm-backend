@@ -332,10 +332,10 @@ MySQL corriendo para testear lógica de negocio.
    `/comparativo-consumo` (BOM de Módulo 1A vs. comprado de Módulo 3 vs.
    recibido de Almacén vs. despachado de Módulo 4 — el que más tablas
    cruza) y `/alertas` (stock bajo, próximos a vencer, observaciones sin
-   resolver). Límites documentados en el propio código: `/alertas` usa
+   resolver). Límites documentados en el propio código: `/alertas` usaba
    `producto.stock_minimo_referencial` como único umbral —
-   `almacen_producto_parametro` (override por almacén) no tiene modelo
-   en ningún módulo, no se agregó; "próximos a vencer" informa la
+   `almacen_producto_parametro` (override por almacén) no tenía modelo
+   en ningún módulo (cerrado en la Sesión 17); "próximos a vencer" informa la
    cantidad *ingresada* del lote, no la que *queda* en stock hoy (el
    esquema no trackea stock por lote, solo por almacén+producto).
 8. ~~**Frontend Next.js — Sesión 1**~~ ✅ implementado (scaffold, tema,
@@ -700,7 +700,10 @@ MySQL corriendo para testear lógica de negocio.
    "09 Administración" en el diseño) **no se construyó — no existe ningún
    modelo ni tabla para eso en todo el backend** (grep sobre `models/`,
    `schemas/`, `api/`, sin resultados), documentado como límite explícito
-   igual que `almacen_producto_parametro`. **Límite de alcance no resuelto
+   (a diferencia de `almacen_producto_parametro`, cerrado en la
+   Sesión 17, este no tiene ni siquiera una tabla en el esquema — sería
+   una sesión de alcance mayor, no solo mapear algo que ya existía).
+   **Límite de alcance no resuelto
    aquí**: ni los 3 endpoints de `reportes.py` ni `GET /auditoria` tienen
    `require_roles(...)` en el backend — solo `get_current_user` — así que
    el gate `ADMIN`/`LOGISTICA_CENTRAL` de `/reportes` en `nav.ts` es
@@ -1090,6 +1093,71 @@ MySQL corriendo para testear lógica de negocio.
    almacén) → 403 exacto ("No tienes autorización para operar sobre los
    documentos de este proveedor"). `npx tsc --noEmit` + `npx eslint .`
    limpios (sin cambios de frontend en esta sesión).
+   ~~**Sesión 17 — Parámetro de stock mínimo por almacén**~~ ✅
+   implementado. Cierra el límite documentado desde la Sesión 10:
+   `/reportes/alertas` usaba un único umbral global
+   (`Producto.stock_minimo_referencial`) para "stock bajo", sin poder
+   ajustarlo por almacén. `almacen_producto_parametro` **ya existía en
+   `01_schema.sql`** (PK compuesta `almacen_id`+`producto_id`,
+   `stock_minimo`) desde el bootstrapping inicial pero nunca tuvo modelo
+   ORM — mismo patrón que `bom_consolidado` en la Sesión 13, sin cambios
+   de esquema/parche necesarios.
+   Backend: `models/inventario.py::AlmacenProductoParametro` (mismo
+   archivo/patrón que `StockAlmacenProducto` — PK compuesta, relaciones
+   `almacen`/`producto` `lazy="joined"`); `crud/parametro_stock.py`
+   (nuevo, funciones sueltas en vez de `CRUDBase` porque la PK compuesta
+   no encaja con `CRUDBase.get(db, pk)` de un solo valor —
+   `list_filtrado`, `upsert` con `db.get(Modelo, (almacen_id,
+   producto_id))` para decidir crear vs. actualizar, `eliminar`);
+   `api/v1/parametros_stock.py` (nuevo router `/parametros-stock`: `GET`
+   con el mismo alcance de lectura RN-20 de la Sesión 15, `PUT`/`DELETE`
+   con `require_roles("ADMIN", "LOGISTICA_CENTRAL")` — mismos roles que
+   `PATCH /productos/{id}`, dueño del umbral global — + `verificar_acceso_
+   almacen` defensivo, igual que el caso ya documentado en
+   `ordenes_compra.py` en la Sesión 11, porque esos dos roles siempre
+   tienen `acceso_todos_almacenes=True`). `crud/reportes.py::_stock_bajo`
+   se reescribe con un `outerjoin` a la tabla nueva y
+   `func.coalesce(override, global)` como umbral efectivo — el campo de
+   salida `StockBajoOut.stock_minimo_referencial` **no cambia de
+   nombre** (evita tocar schema/frontend ya existentes) pero ahora
+   refleja ese umbral efectivo, documentado con un comentario en el
+   propio código. Tabla con PK compuesta → no se audita (mismo criterio
+   ya establecido para `stock_almacen_producto` desde la Sesión 7, nada
+   que tocar en `core/audit.py`).
+   Frontend: nueva pestaña "Parámetros de stock" en `/almacenes`
+   (`ModuleTabs.tsx`) → `/almacenes/parametros` (lista + `SelectFilter`
+   por almacén, mismo patrón que `ubicaciones/page.tsx`) con
+   `<ParametroStockForm>` (upsert inline, solo ADMIN/LOGISTICA_CENTRAL) y
+   `<EliminarParametroButton>` por fila.
+   **Bug real encontrado y corregido durante la verificación en el
+   navegador**: `app/api/backend/[...path]/route.ts` (el proxy compartido
+   por todos los Client Components desde la Sesión 1) construía
+   `new NextResponse(responseBody, {status, headers})` pasando siempre un
+   `ArrayBuffer` como body — la spec de Fetch/Response prohíbe un body no
+   nulo en respuestas 204/205/304, y el runtime de Next.js lo revienta en
+   tiempo de ejecución (500) al intentarlo. Nunca se había manifestado
+   porque `DELETE /parametros-stock/{almacen_id}/{producto_id}` es el
+   **primer endpoint de todo el backend que responde 204** — confirmado
+   con `grep -rn "204" app/api/v1/*.py` antes de escribirlo así. El
+   borrado en sí funcionaba de punta a punta en el backend (confirmado
+   por API directa que la fila desaparecía de la base pese al 500 que
+   veía el navegador); el bug estaba solo en la capa de relay hacia el
+   cliente. Fix: `responseBody` es `null` cuando `backendResponse.status`
+   es 204/205/304, antes de construir el `NextResponse`. No se optó por
+   evitar el problema devolviendo 200 en el endpoint nuevo — se corrigió
+   la causa raíz en el proxy compartido, porque cualquier futuro endpoint
+   204 habría pisado el mismo bug.
+   Test nuevo: `test_almacen.py::test_parametro_stock_por_almacen`
+   (mismo stock físico en dos almacenes, uno sin override usa el umbral
+   global y aparece en `stock_bajo`, el otro con override no aparece;
+   `DELETE` revierte al umbral global; RN-20 en escritura con
+   `_headers_almacenero`). `pytest -q` completo: 30/30 en verde. Verificado
+   de punta a punta en el navegador contra una base SQLite descartable:
+   crear parámetro (`PUT`, 200) → tabla lo muestra → eliminar (`DELETE`,
+   204 tras el fix del proxy, confirmado también con un `GET` directo por
+   API que la fila ya no existe) → `/reportes/alertas` sigue renderizando
+   sin errores. `npx tsc --noEmit` + `npx eslint .` + `npx next build`
+   limpios (59 rutas, incluida la nueva).
 
 ## 11. Cómo correr el proyecto
 

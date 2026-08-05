@@ -12,6 +12,7 @@ const TABS = [
   { href: "/almacenes/movimientos", label: "Movimientos" },
   { href: "/almacenes/inventarios", label: "Inventarios físicos" },
   { href: "/almacenes/transferencias", label: "Transferencias" },
+  { href: "/almacenes/parametros", label: "Parámetros de stock" },
 ];
 
 export function ModuleTabs() {

@@ -6,11 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type ListarGuiasRemisionApiV1GuiasRemisionGetParams = {
-page?: number;
-page_size?: number;
-orden_compra_id?: number | null;
-proveedor_id?: number | null;
-almacen_destino_id?: number | null;
-estado?: string | null;
-};
+export interface AlmacenProductoParametroOut {
+  almacen_id: number;
+  almacen_codigo: string;
+  producto_id: number;
+  producto_codigo: string;
+  producto_nombre: string;
+  stock_minimo: number;
+}
