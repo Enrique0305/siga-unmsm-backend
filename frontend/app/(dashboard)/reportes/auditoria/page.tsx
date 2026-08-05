@@ -94,7 +94,7 @@ export default async function AuditoriaPage({
                 <td className="px-4 py-3">{log.entidad}</td>
                 <td className="px-4 py-3">{log.entidad_id}</td>
                 <td className="px-4 py-3">{log.accion}</td>
-                <td className="px-4 py-3 text-text-secondary">Usuario #{log.usuario_id}</td>
+                <td className="px-4 py-3 text-text-secondary">{log.usuario_nombre}</td>
                 <td className="px-4 py-3">
                   {log.detalle_json ? (
                     <pre className="max-w-xs overflow-x-auto whitespace-pre-wrap text-xs text-text-secondary">

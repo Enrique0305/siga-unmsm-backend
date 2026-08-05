@@ -1495,6 +1495,42 @@ MySQL corriendo para testear lógica de negocio.
    usa `func.now()` — en vez de `date.today()`. No se tocó
    `crud/reportes.py` ni ningún modelo. `pytest -q` completo: 36/36 en
    verde.
+   ~~**Deuda técnica: nombre de usuario en Auditoría**~~ ✅ corregido.
+   Documentado desde la Sesión 10: `/reportes` → Auditoría mostraba
+   "Usuario #N" porque `AuditoriaLogOut` solo exponía `usuario_id` — el
+   razonamiento original decía que cruzar con `/usuarios` daría 403 para
+   `LOGISTICA_CENTRAL` (`ADMIN`-only). Ese razonamiento describía cruzar
+   desde el **frontend**; no aplica al backend, que ya tiene el FK
+   `usuario_id -> usuario.usuario_id` y puede unir directo sin pasar por
+   ningún endpoint. `models/auditoria.py::AuditoriaLog` gana
+   `usuario: Mapped["Usuario"] = relationship(lazy="joined")` (nunca
+   lazy-load en async, gotcha #1). **Restricción real encontrada al
+   investigar**: ningún test de la suite siembra una fila `Usuario` real
+   — todos emiten JWTs directo con `create_access_token(usuario_id=N)`
+   sin insertar esa fila, y SQLite nunca tiene `PRAGMA foreign_keys=ON`
+   en este proyecto, así que esas referencias colgantes funcionan hoy sin
+   error; con un JOIN normal, `obj.usuario` sería `None` para casi toda
+   la suite existente. `schemas/auditoria.py::AuditoriaLogOut` gana
+   `usuario_nombre: str` + `from_model` (mismo patrón que
+   `ContratoListOut.from_model`) con fallback explícito
+   `f"Usuario #{obj.usuario_id}"` cuando `obj.usuario is None` — no es
+   defensividad de más, es necesario para no romper la suite.
+   `api/v1/auditoria.py::listar_auditoria` pasa de conversión automática
+   a `AuditoriaLogOut.from_model(item)` explícito. `tests/test_compras.py`
+   — el fixture `client` compartido (importado por ~8 archivos de test)
+   gana `ac.session_factory = TestSession` expuesto en la instancia, para
+   que tests que sí necesitan sembrar datos reales (como éste) puedan
+   abrir una sesión cruda sin duplicar la construcción del engine.
+   `tests/test_auditoria.py` gana un assert del fallback y un test nuevo
+   que siembra `Rol`+`Usuario` reales y confirma `usuario_nombre` trae el
+   nombre real. Frontend: `reportes/auditoria/page.tsx` — columna
+   "Usuario" pasa de `Usuario #{log.usuario_id}` a `log.usuario_nombre`;
+   regenerado el cliente orval. `pytest -q` completo: 37/37 en verde.
+   `npx tsc --noEmit` + `npx eslint .` + `npx next build` limpios.
+   Verificado de punta a punta en el navegador contra un backend
+   descartable con el seed real: crear un producto → `/reportes/
+   auditoria` muestra "Administrador SIGA-UNMSM" (el nombre real del
+   admin sembrado) en vez de "Usuario #1".
 
 ## 11. Cómo correr el proyecto
 

@@ -29,4 +29,9 @@ async def listar_auditoria(
     items, total = await auditoria_repo.list_filtrado(
         db, page=page, page_size=page_size, entidad=entidad, entidad_id=entidad_id, usuario_id=usuario_id
     )
-    return Page(items=items, total=total, page=page, page_size=page_size)
+    return Page(
+        items=[AuditoriaLogOut.from_model(item) for item in items],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )

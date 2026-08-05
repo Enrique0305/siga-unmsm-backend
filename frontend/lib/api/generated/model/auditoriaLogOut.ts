@@ -13,6 +13,7 @@ export interface AuditoriaLogOut {
   entidad_id: number;
   accion: string;
   usuario_id: number;
+  usuario_nombre: string;
   detalle_json: AuditoriaLogOutDetalleJson;
   creado_en: string;
 }

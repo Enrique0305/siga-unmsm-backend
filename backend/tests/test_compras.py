@@ -68,6 +68,10 @@ async def client():
 
     transport = ASGITransport(app=fastapi_app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        # Expuesto para tests que necesitan una sesión cruda contra el
+        # mismo engine en memoria (ej. sembrar una fila real fuera del
+        # flujo HTTP, o llamar una función de core/jobs.py directo).
+        ac.session_factory = TestSession  # type: ignore[attr-defined]
         yield ac
 
     fastapi_app.dependency_overrides.clear()
