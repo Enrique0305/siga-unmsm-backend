@@ -407,6 +407,7 @@ CREATE TABLE dosificacion_detalle (
 -- [NUTRICION] Explosión de materiales consolidada por periodo y almacén
 CREATE TABLE bom_consolidado (
     bom_consolidado_id           BIGINT AUTO_INCREMENT PRIMARY KEY,
+    racion_anual_id                 INT NOT NULL, -- dueña real de la consolidación (Sesión 22/deuda técnica)
     tipo_periodo                    VARCHAR(20) NOT NULL, -- SEMANA, QUINCENA, MES, ANIO
     periodo_inicio                    DATE NOT NULL,
     periodo_fin                         DATE NOT NULL,
@@ -417,6 +418,7 @@ CREATE TABLE bom_consolidado (
     saldo_contractual_referencia                  DECIMAL(14,4),
     estado_suficiencia                              VARCHAR(20), -- SUFICIENTE, ALERTA_STOCK, ALERTA_CONTRATO
     generado_en                                       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_bom_consolidado_racion_anual_id FOREIGN KEY (racion_anual_id) REFERENCES racion_anual(racion_anual_id),
     CONSTRAINT fk_bom_consolidado_almacen_id FOREIGN KEY (almacen_id) REFERENCES almacen(almacen_id),
     CONSTRAINT fk_bom_consolidado_producto_id FOREIGN KEY (producto_id) REFERENCES producto(producto_id)
 );

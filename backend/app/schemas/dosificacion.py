@@ -43,6 +43,7 @@ class BomConsolidadoOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     bom_consolidado_id: int
+    racion_anual_id: int
     tipo_periodo: str
     periodo_inicio: date
     periodo_fin: date
@@ -61,6 +62,7 @@ class BomConsolidadoOut(BaseModel):
     def from_model(cls, obj) -> "BomConsolidadoOut":
         return cls(
             bom_consolidado_id=obj.bom_consolidado_id,
+            racion_anual_id=obj.racion_anual_id,
             tipo_periodo=obj.tipo_periodo,
             periodo_inicio=obj.periodo_inicio,
             periodo_fin=obj.periodo_fin,

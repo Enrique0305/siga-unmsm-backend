@@ -913,18 +913,15 @@ MySQL corriendo para testear lógica de negocio.
    (documentados también en el docstring del servicio, mismo criterio que
    otros MVP de sesiones anteriores): `tipo_periodo` fijo en `"ANIO"`
    (1 ene/31 dic del año de la ración anual — la tabla soporta SEMANA/
-   QUINCENA/MES pero no se expone esa granularidad); `estado_suficiencia`
-   solo distingue `SUFICIENTE`/`ALERTA_CONTRATO` (comparando cantidad
-   requerida vs. saldo contractual) — `ALERTA_STOCK` no se genera porque
-   no hay una regla clara en el diseño para combinar stock físico con
-   saldo contractual sin inventar una fórmula arbitraria; un solo
-   `RequerimientoAnual` por `racion_anual_id` (422 si ya existe uno,
-   cualquier estado — evita la complejidad de un flujo de "nueva versión"
-   que no existía para reutilizar); `bom_consolidado` no tiene columna
-   `racion_anual_id` en el esquema, así que la lectura se scope por año
-   calendario, no por ración exacta (si dos raciones anuales del mismo año
-   consolidan el mismo almacén+producto, la segunda reemplaza la foto de
-   la primera — límite de esquema, no de la lógica).
+   QUINCENA/MES pero no se expone esa granularidad; **sigue sin cerrar**,
+   ver deuda técnica más abajo); un solo `RequerimientoAnual` por
+   `racion_anual_id` (422 si ya existe uno, cualquier estado — evita la
+   complejidad de un flujo de "nueva versión" que no existía para
+   reutilizar). **Los otros dos límites de esta lista original
+   (`estado_suficiencia` sin `ALERTA_STOCK`, y `bom_consolidado` sin
+   `racion_anual_id` — la segunda ración anual del mismo año reemplazaba
+   silenciosamente la foto de la primera) se cerraron más abajo**, ver
+   "Deuda técnica: bom_consolidado".
    Frontend: `planificacion/[id]/page.tsx` (detalle de Ración anual,
    Sesión 4) gana un bloque "Requerimiento anual (BOM)" con el mismo
    patrón "verificar existencia antes de decidir qué mostrar" que
@@ -1588,6 +1585,66 @@ MySQL corriendo para testear lógica de negocio.
    prueba — se renderiza con la razón social real y la consulta con
    `proveedor_id` explícito responde 200 con las 4 métricas en 0 (sin
    datos de compra en la base descartable, comportamiento esperado).
+   ~~**Deuda técnica: bom_consolidado (racion_anual_id + ALERTA_STOCK)**~~
+   ✅ corregido. Cierra dos de los tres límites documentados en la Sesión
+   13 para `crud/bom_consolidado.py`. **Bug real de pérdida silenciosa de
+   datos**: `bom_consolidado` no tenía columna `racion_anual_id` —
+   `generar_y_consolidar`/`obtener_ultimo` scopeaban por año calendario
+   (`tipo_periodo="ANIO"` + `periodo_inicio`/`periodo_fin`), así que dos
+   `RacionAnual` distintas del mismo año que consolidaran el mismo
+   almacén+producto hacían que la segunda reemplazara silenciosamente la
+   foto de la primera (el `DELETE` idempotente borraba por
+   periodo+almacén+producto, no por ración). Fix: columna nueva
+   `bom_consolidado.racion_anual_id` (`INT NULL` + FK — nullable, mismo
+   patrón que `usuario.proveedor_id` de la Sesión 12, sin backfill porque
+   la relación real nunca se guardó en filas ya existentes;
+   `db/patches_historicos/14_parche_bom_consolidado_racion_anual.sql`),
+   `generar_y_consolidar` (el `DELETE` idempotente y cada `INSERT` pasan a
+   filtrar/setear por `racion_anual_id` directo) y `obtener_ultimo` (ya no
+   necesita leer `racion.anio` para la query) migrados a scopear por
+   ración real, no por año. **Segundo bug encontrado al investigar**:
+   `ALERTA_STOCK` nunca se generaba pese a que el modelo ya documentaba la
+   columna para admitirlo y el servicio ya capturaba
+   `stock_disponible_referencia` en cada fila — solo nunca se leía de
+   vuelta para decidir `estado_suficiencia`; además ese campo guardaba
+   `StockAlmacenProducto.stock_fisico` en vez de `.stock_disponible`
+   (columna generada `stock_fisico - stock_comprometido`, RN-21), pese a
+   que el nombre del campo promete "disponible". Fix: `stock_map` ahora
+   usa `.stock_disponible`, y `estado_suficiencia` compara con prioridad
+   **stock antes que contrato** (`ALERTA_STOCK` si el disponible no
+   alcanza, si no `ALERTA_CONTRATO` si el saldo contractual no alcanza, si
+   no `SUFICIENTE`) — decisión de negocio razonada en el propio código: el
+   stock físico es la restricción más inmediata (si el producto no está
+   ya en el almacén, no importa que el contrato tenga saldo; el contrato
+   es la palanca para reponerlo, no para tenerlo ya), consistente con el
+   diseño original (línea 212-219: compara contra Stock disponible +
+   Stock comprometido + Saldo contractual, no solo el contrato).
+   `schemas/dosificacion.py::BomConsolidadoOut` gana el campo
+   `racion_anual_id`. **Tercer límite de la Sesión 13,
+   `tipo_periodo` fijo en `"ANIO"`, queda deliberadamente fuera** — a
+   diferencia de los otros dos, no es un bug sino una funcionalidad no
+   construida (necesitaría selección de rango de fechas en el endpoint/UI
+   de consolidación), documentado como límite consciente separado en el
+   docstring del servicio.
+   Tests: `test_planificacion.py::test_consolidar_requerimiento_desde_bom`
+   gana una tercera ración (`racion_3`, mismo año 2029 que `racion_2`,
+   mismo producto/almacén vía la misma receta) que confirma que
+   `racion_2` conserva su propia fila tras consolidar `racion_3` — el
+   caso que antes fallaba silenciosamente. Test nuevo
+   `test_bom_consolidado_alerta_stock`: contrato con saldo de sobra (100)
+   pero `stock_almacen_producto` sembrado directo vía
+   `client.session_factory()` con disponible (5) por debajo de lo
+   requerido (18) — confirma `estado_suficiencia == "ALERTA_STOCK"`
+   pese al saldo contractual suficiente, verificando la prioridad.
+   `tests/test_planificacion.py` gana `ac.session_factory = TestSession`
+   expuesto en el fixture `client` (mismo patrón ya aplicado a
+   `test_compras.py`/`test_cocina.py`). `pytest -q` completo: 41/41 en
+   verde. Verificación de backend descartable + API directa no fue
+   necesaria por separado — la suite ya ejercita el escenario completo
+   (dos raciones del mismo año, ALERTA_STOCK con prioridad) contra la
+   app real vía `httpx.AsyncClient`, misma prueba que daría un backend
+   descartable manual. Sin cambios de frontend (`BomConsolidadoOut` gana
+   un campo que ninguna pantalla renderiza hoy explícitamente).
 
 ## 11. Cómo correr el proyecto
 

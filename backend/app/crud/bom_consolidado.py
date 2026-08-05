@@ -17,17 +17,11 @@ class ServicioBomConsolidado:
     día de menú hacia un Requerimiento Anual, cerrando el pipeline descrito en
     el diseño (Menú Quincenal -> BOM -> Requerimiento Anual).
 
-    Límites conscientes de esta versión (ver CLAUDE.md sección 10, Sesión 13):
-    - tipo_periodo fijo en "ANIO" (periodo_inicio/fin = 1 ene / 31 dic del año
-      de la ración anual) — la tabla soporta SEMANA/QUINCENA/MES pero no se
-      expone esa granularidad todavía.
-    - estado_suficiencia solo distingue SUFICIENTE/ALERTA_CONTRATO — no hay
-      una regla clara para combinar stock físico con saldo contractual sin
-      inventar una fórmula arbitraria, así que ALERTA_STOCK no se genera aquí.
-    - bom_consolidado no tiene columna racion_anual_id en el esquema, así que
-      la lectura (obtener_ultimo) se scope por año calendario, no por ración
-      anual exacta — si dos raciones anuales del mismo año consolidan el
-      mismo almacén+producto, la segunda reemplaza la foto de la primera.
+    Límite consciente de esta versión (ver CLAUDE.md sección 10, Sesión 13):
+    tipo_periodo fijo en "ANIO" (periodo_inicio/fin = 1 ene / 31 dic del año
+    de la ración anual) — la tabla soporta SEMANA/QUINCENA/MES pero no se
+    expone esa granularidad todavía (necesitaría selección de rango de
+    fechas en el endpoint/UI de consolidación, deuda técnica separada).
     """
 
     async def generar_y_consolidar(self, db: AsyncSession, racion_anual_id: int) -> RequerimientoAnual:
@@ -66,16 +60,10 @@ class ServicioBomConsolidado:
         almacenes_ids = {f.almacen_id for f in filas}
         productos_ids = {f.producto_id for f in filas}
 
-        # Idempotente: reemplaza cualquier consolidación previa de este mismo
-        # periodo+almacén+producto (ver límite documentado en la docstring).
-        await db.execute(
-            delete(BomConsolidado).where(
-                BomConsolidado.tipo_periodo == "ANIO",
-                BomConsolidado.periodo_inicio == periodo_inicio,
-                BomConsolidado.almacen_id.in_(almacenes_ids),
-                BomConsolidado.producto_id.in_(productos_ids),
-            )
-        )
+        # Idempotente: reemplaza cualquier consolidación previa de esta misma
+        # ración anual — repetir la consolidación nunca toca las filas de
+        # otra ración, aunque sea del mismo año calendario.
+        await db.execute(delete(BomConsolidado).where(BomConsolidado.racion_anual_id == racion_anual_id))
 
         stock_map: dict[tuple[int, int], float] = {}
         stmt_stock = select(StockAlmacenProducto).where(
@@ -83,7 +71,11 @@ class ServicioBomConsolidado:
             StockAlmacenProducto.producto_id.in_(productos_ids),
         )
         for fila_stock in (await db.execute(stmt_stock)).scalars().all():
-            stock_map[(fila_stock.almacen_id, fila_stock.producto_id)] = fila_stock.stock_fisico
+            # stock_disponible = stock_fisico - stock_comprometido (columna
+            # generada, ver models/inventario.py::StockAlmacenProducto) — no
+            # stock_fisico a secas, para que la referencia realmente refleje
+            # lo disponible (RN-21), como promete el nombre del campo.
+            stock_map[(fila_stock.almacen_id, fila_stock.producto_id)] = fila_stock.stock_disponible
 
         saldo_map: dict[int, float] = {}
         stmt_saldo = (
@@ -97,17 +89,28 @@ class ServicioBomConsolidado:
 
         totales_por_producto: dict[int, tuple[float, int]] = {}
         for almacen_id, producto_id, unidad_id, cantidad_total in filas:
+            stock_ref = stock_map.get((almacen_id, producto_id))
             saldo_ref = saldo_map.get(producto_id)
-            estado = "SUFICIENTE" if saldo_ref is not None and saldo_ref >= cantidad_total else "ALERTA_CONTRATO"
+            # Prioridad: stock físico disponible primero — es la restricción
+            # más inmediata (si no está en el almacén ahora, no importa que
+            # el contrato tenga saldo; el contrato es la palanca para
+            # reponerlo, no para tenerlo ya). RN-28 / diseño línea 212-219.
+            if stock_ref is not None and stock_ref < cantidad_total:
+                estado = "ALERTA_STOCK"
+            elif saldo_ref is None or saldo_ref < cantidad_total:
+                estado = "ALERTA_CONTRATO"
+            else:
+                estado = "SUFICIENTE"
             db.add(
                 BomConsolidado(
+                    racion_anual_id=racion_anual_id,
                     tipo_periodo="ANIO",
                     periodo_inicio=periodo_inicio,
                     periodo_fin=periodo_fin,
                     almacen_id=almacen_id,
                     producto_id=producto_id,
                     cantidad_requerida_total=round(cantidad_total, 4),
-                    stock_disponible_referencia=stock_map.get((almacen_id, producto_id)),
+                    stock_disponible_referencia=stock_ref,
                     saldo_contractual_referencia=saldo_ref,
                     estado_suficiencia=estado,
                 )
@@ -140,11 +143,7 @@ class ServicioBomConsolidado:
 
         stmt = (
             select(BomConsolidado)
-            .where(
-                BomConsolidado.tipo_periodo == "ANIO",
-                BomConsolidado.periodo_inicio == date(racion.anio, 1, 1),
-                BomConsolidado.periodo_fin == date(racion.anio, 12, 31),
-            )
+            .where(BomConsolidado.racion_anual_id == racion_anual_id)
             .order_by(BomConsolidado.almacen_id, BomConsolidado.producto_id)
         )
         return list((await db.execute(stmt)).scalars().all())

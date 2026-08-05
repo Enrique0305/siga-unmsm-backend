@@ -37,6 +37,7 @@ class BomConsolidado(Base):
     __tablename__ = "bom_consolidado"
 
     bom_consolidado_id: Mapped[int] = mapped_column(BigIntPK, primary_key=True)
+    racion_anual_id: Mapped[int] = mapped_column(ForeignKey("racion_anual.racion_anual_id"))
     tipo_periodo: Mapped[str] = mapped_column(String(20))  # SEMANA, QUINCENA, MES, ANIO
     periodo_inicio: Mapped[date] = mapped_column(Date)
     periodo_fin: Mapped[date] = mapped_column(Date)

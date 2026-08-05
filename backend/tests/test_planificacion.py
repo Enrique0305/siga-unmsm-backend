@@ -58,6 +58,10 @@ async def client():
 
     transport = ASGITransport(app=fastapi_app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        # Expuesto para tests que necesitan sembrar datos fuera del flujo
+        # HTTP (ej. stock_almacen_producto directo) — mismo patrón que
+        # tests.test_compras.client.
+        ac.session_factory = TestSession  # type: ignore[attr-defined]
         yield ac
 
     fastapi_app.dependency_overrides.clear()
@@ -447,3 +451,144 @@ async def test_consolidar_requerimiento_desde_bom(client: AsyncClient):
     fila_bom_2 = bom_2.json()[0]
     assert fila_bom_2["saldo_contractual_referencia"] == pytest.approx(1000.0)
     assert fila_bom_2["estado_suficiencia"] == "SUFICIENTE"
+    assert fila_bom_2["racion_anual_id"] == racion_2_id
+
+    # racion_3: mismo AÑO CALENDARIO que racion_2 (2029) y mismo producto/
+    # almacén (misma receta_id) — antes del fix de racion_anual_id, el
+    # DELETE idempotente de racion_3 borraba por año+almacén+producto, así
+    # que reemplazaba silenciosamente la fila de racion_2 recién verificada.
+    racion_3_id = await _crear_racion_con_dosificacion(
+        client, headers, 2029, receta_id, "2029-02-01", "2029-02-05"
+    )
+    consolidar_3 = await client.post(
+        f"/api/v1/planificacion/raciones-anuales/{racion_3_id}/consolidar-requerimiento", headers=headers
+    )
+    assert consolidar_3.status_code == 201, consolidar_3.text
+
+    bom_2_tras_racion_3 = await client.get(
+        f"/api/v1/planificacion/raciones-anuales/{racion_2_id}/bom-consolidado", headers=headers
+    )
+    assert bom_2_tras_racion_3.status_code == 200, bom_2_tras_racion_3.text
+    fila_bom_2_tras = bom_2_tras_racion_3.json()
+    assert len(fila_bom_2_tras) == 1
+    assert fila_bom_2_tras[0]["cantidad_requerida_total"] == pytest.approx(18.0)
+    assert fila_bom_2_tras[0]["racion_anual_id"] == racion_2_id
+
+    bom_3 = await client.get(
+        f"/api/v1/planificacion/raciones-anuales/{racion_3_id}/bom-consolidado", headers=headers
+    )
+    assert bom_3.status_code == 200, bom_3.text
+    assert bom_3.json()[0]["racion_anual_id"] == racion_3_id
+
+
+@pytest.mark.asyncio
+async def test_bom_consolidado_alerta_stock(client: AsyncClient):
+    """Deuda técnica: estado_suficiencia gana ALERTA_STOCK, con prioridad
+    sobre ALERTA_CONTRATO — si el stock físico disponible en el almacén no
+    alcanza, no importa que el contrato sí tenga saldo suficiente."""
+    headers = _headers_admin()
+
+    alimento_id, receta_id = await _crear_receta_vigente(client, headers, "STOCK")
+
+    producto_resp = await client.post(
+        "/api/v1/productos",
+        headers=headers,
+        json={
+            "codigo": "P-STOCK",
+            "nombre": "Producto Stock",
+            "categoria": "Abarrotes",
+            "unidad_id": 1,
+            "alimento_id": alimento_id,
+        },
+    )
+    assert producto_resp.status_code == 201, producto_resp.text
+    producto_id = producto_resp.json()["producto_id"]
+
+    # Stock físico disponible (5) por debajo de lo que va a requerir la
+    # dosificación (18) — sembrado directo, sin pasar por ingreso/inspección
+    # real, porque lo único que este test necesita del módulo de almacén es
+    # el valor final en stock_almacen_producto.
+    async with client.session_factory() as db:
+        from app.models.inventario import StockAlmacenProducto
+
+        db.add(StockAlmacenProducto(almacen_id=1, producto_id=producto_id, stock_fisico=5, stock_comprometido=0))
+        await db.commit()
+
+    # Contrato con saldo de sobra (100, >> 18 requeridos) para el mismo
+    # producto — si ALERTA_STOCK no tuviera prioridad sobre ALERTA_CONTRATO,
+    # este saldo alcanzaría para dar SUFICIENTE. El saldo contractual
+    # (producto_contratado) es GLOBAL por producto (RN-19), así que no
+    # importa que el contrato se haya originado desde una ración anual
+    # distinta (racion_seed) a la que realmente se va a consolidar
+    # (racion_id) — mismo patrón que racion_1/racion_2 en el test anterior.
+    racion_seed_resp = await client.post(
+        "/api/v1/planificacion/raciones-anuales",
+        headers=headers,
+        json={"sede_id": 1, "centro_consumo_id": 1, "anio": 2031, "poblacion_atendida": 100, "raciones_dia": 100},
+    )
+    assert racion_seed_resp.status_code == 201, racion_seed_resp.text
+    racion_seed_id = racion_seed_resp.json()["racion_anual_id"]
+
+    req_resp = await client.post(
+        "/api/v1/requerimientos-anuales",
+        headers=headers,
+        json={
+            "racion_anual_id": racion_seed_id,
+            "presupuesto_referencial_total": 500,
+            "detalle": [
+                {"producto_id": producto_id, "cantidad_estimada_anual": 100, "unidad_id": 1, "presupuesto_referencial": 500}
+            ],
+        },
+    )
+    assert req_resp.status_code == 201, req_resp.text
+    requerimiento_seed_id = req_resp.json()["requerimiento_anual_id"]
+    for estado in ("EN_REVISION", "APROBADO"):
+        r = await client.patch(
+            f"/api/v1/requerimientos-anuales/{requerimiento_seed_id}/estado", headers=headers, json={"estado": estado}
+        )
+        assert r.status_code == 200, r.text
+
+    proveedor_resp = await client.post(
+        "/api/v1/proveedores", headers=headers, json={"ruc": "20888888888", "razon_social": "Proveedor Stock SAC"}
+    )
+    assert proveedor_resp.status_code == 201, proveedor_resp.text
+    proveedor_id = proveedor_resp.json()["proveedor_id"]
+
+    contrato_resp = await client.post(
+        "/api/v1/contratos",
+        headers=headers,
+        json={
+            "numero_contrato": "CTR-STOCK-001",
+            "proveedor_id": proveedor_id,
+            "requerimiento_anual_id": requerimiento_seed_id,
+            "fecha_inicio": date.today().isoformat(),
+            "fecha_fin": (date.today() + timedelta(days=180)).isoformat(),
+            "presupuesto_total": 500,
+        },
+    )
+    assert contrato_resp.status_code == 201, contrato_resp.text
+    contrato_id = contrato_resp.json()["contrato_id"]
+
+    pc_resp = await client.post(
+        f"/api/v1/contratos/{contrato_id}/productos",
+        headers=headers,
+        json={"producto_id": producto_id, "precio_unitario": 5.0, "cantidad_contratada": 100},
+    )
+    assert pc_resp.status_code == 201, pc_resp.text
+
+    # racion_id: la que sí tiene dosificación calculada (18 requeridos) y
+    # queda libre de requerimiento propio para poder consolidar el BOM real.
+    racion_id = await _crear_racion_con_dosificacion(client, headers, 2031, receta_id, "2031-02-01", "2031-02-05")
+
+    consolidar = await client.post(
+        f"/api/v1/planificacion/raciones-anuales/{racion_id}/consolidar-requerimiento", headers=headers
+    )
+    assert consolidar.status_code == 201, consolidar.text
+
+    bom = await client.get(f"/api/v1/planificacion/raciones-anuales/{racion_id}/bom-consolidado", headers=headers)
+    assert bom.status_code == 200, bom.text
+    fila = bom.json()[0]
+    assert fila["cantidad_requerida_total"] == pytest.approx(18.0)
+    assert fila["stock_disponible_referencia"] == pytest.approx(5.0)
+    assert fila["saldo_contractual_referencia"] == pytest.approx(100.0)
+    assert fila["estado_suficiencia"] == "ALERTA_STOCK"
