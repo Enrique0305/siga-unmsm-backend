@@ -4,8 +4,15 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import type { ProductoOut } from "@/lib/api/generated/model/productoOut";
+import type { ProveedorOut } from "@/lib/api/generated/model/proveedorOut";
 
-export function ComparativoConsumoForm({ productos }: { productos: ProductoOut[] }) {
+export function ComparativoConsumoForm({
+  productos,
+  proveedores,
+}: {
+  productos: ProductoOut[];
+  proveedores: ProveedorOut[];
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -14,6 +21,7 @@ export function ComparativoConsumoForm({ productos }: { productos: ProductoOut[]
   );
   const [fechaInicio, setFechaInicio] = useState(searchParams.get("fecha_inicio") ?? "");
   const [fechaFin, setFechaFin] = useState(searchParams.get("fecha_fin") ?? "");
+  const [proveedorId, setProveedorId] = useState(searchParams.get("proveedor_id") ?? "");
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -21,6 +29,7 @@ export function ComparativoConsumoForm({ productos }: { productos: ProductoOut[]
     params.set("producto_id", productoId);
     params.set("fecha_inicio", fechaInicio);
     params.set("fecha_fin", fechaFin);
+    if (proveedorId) params.set("proveedor_id", proveedorId);
     router.push(`/reportes/comparativo?${params.toString()}`);
   }
 
@@ -77,6 +86,24 @@ export function ComparativoConsumoForm({ productos }: { productos: ProductoOut[]
           required
           className="rounded-md border border-border/30 px-3 py-2 text-sm focus:border-primary focus:outline-none"
         />
+      </div>
+      <div className="space-y-1">
+        <label htmlFor="proveedor_id" className="text-sm font-medium">
+          Proveedor
+        </label>
+        <select
+          id="proveedor_id"
+          value={proveedorId}
+          onChange={(event) => setProveedorId(event.target.value)}
+          className="w-64 rounded-md border border-border/30 px-3 py-2 text-sm focus:border-primary focus:outline-none"
+        >
+          <option value="">Todos (solo filtra &quot;Comprado&quot;)</option>
+          {proveedores.map((proveedor) => (
+            <option key={proveedor.proveedor_id} value={proveedor.proveedor_id}>
+              {proveedor.razon_social}
+            </option>
+          ))}
+        </select>
       </div>
       <button
         type="submit"

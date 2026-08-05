@@ -2,6 +2,7 @@ import { ComparativoConsumoForm } from "@/components/reportes/ComparativoConsumo
 import { serverFetch } from "@/lib/api/server-fetch";
 import type { ComparativoConsumoOut } from "@/lib/api/generated/model/comparativoConsumoOut";
 import type { PageProductoOut } from "@/lib/api/generated/model/pageProductoOut";
+import type { PageProveedorOut } from "@/lib/api/generated/model/pageProveedorOut";
 
 export default async function ComparativoConsumoPage({
   searchParams,
@@ -10,20 +11,26 @@ export default async function ComparativoConsumoPage({
   const productoId = typeof params.producto_id === "string" ? params.producto_id : "";
   const fechaInicio = typeof params.fecha_inicio === "string" ? params.fecha_inicio : "";
   const fechaFin = typeof params.fecha_fin === "string" ? params.fecha_fin : "";
+  const proveedorId = typeof params.proveedor_id === "string" ? params.proveedor_id : "";
 
-  const [productos, comparativo] = await Promise.all([
+  const query = new URLSearchParams();
+  query.set("producto_id", productoId);
+  query.set("fecha_inicio", fechaInicio);
+  query.set("fecha_fin", fechaFin);
+  if (proveedorId) query.set("proveedor_id", proveedorId);
+
+  const [productos, proveedores, comparativo] = await Promise.all([
     serverFetch<PageProductoOut>("/productos?page_size=100"),
+    serverFetch<PageProveedorOut>("/proveedores?page_size=100"),
     productoId && fechaInicio && fechaFin
-      ? serverFetch<ComparativoConsumoOut>(
-          `/reportes/comparativo-consumo?producto_id=${productoId}&fecha_inicio=${fechaInicio}&fecha_fin=${fechaFin}`,
-        )
+      ? serverFetch<ComparativoConsumoOut>(`/reportes/comparativo-consumo?${query.toString()}`)
       : Promise.resolve(null),
   ]);
 
   return (
     <div className="space-y-4">
       <div className="rounded-lg border border-border/20 bg-white p-4">
-        <ComparativoConsumoForm productos={productos.items} />
+        <ComparativoConsumoForm productos={productos.items} proveedores={proveedores.items} />
       </div>
 
       {comparativo && (

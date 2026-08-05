@@ -686,7 +686,10 @@ MySQL corriendo para testear lógica de negocio.
    `almacen_id` o `producto_id`+rango de fechas, **no** por contrato/
    proveedor/centro de consumo como promete la sección 3 del diseño — el
    frontend se construyó alrededor de lo que el backend realmente
-   soporta; `AuditoriaLogOut` no trae nombre de usuario, solo
+   soporta; **`sede_id`/`proveedor_id`/`producto_id` cerrados más abajo**
+   ["Deuda técnica: filtros de /reportes"], `centro_consumo_id` documentado
+   ahí mismo como límite consciente; `AuditoriaLogOut` no trae nombre de
+   usuario, solo
    `usuario_id`, así que la tabla muestra "Usuario #N" sin cruzar con
    `/usuarios` porque ese endpoint es `ADMIN`-only y `LOGISTICA_CENTRAL`
    —que también ve `/reportes`— recibiría 403 si el cruce se intentara
@@ -1573,6 +1576,60 @@ MySQL corriendo para testear lógica de negocio.
    `CREAR` y el diff exacto (`{"nombre": {"antes":..., "despues":...}}`)
    en la fila `ACTUALIZAR`, sin `codigo` ni otras columnas sin tocar. Sin
    cambios de schema/endpoint/frontend — solo `core/audit.py`.
+   ~~**Deuda técnica: filtros de /reportes (sede, proveedor, producto)**~~
+   ✅ corregido. Documentado desde la Sesión 10: el diseño original
+   (línea 110: "Reportes por periodo/contrato/proveedor/producto/centro
+   de consumo"; línea 545: "filtros estándar... almacén, sede, comedor,
+   proveedor, producto") prometía más filtros de los que `reportes.py`
+   implementaba (solo `almacen_id`/`producto_id`+fechas). Investigado
+   antes de implementar en vez de agregar todos los filtros "estándar" a
+   los 3 endpoints por igual: no todos aplican con el mismo sentido a las
+   4 métricas de `comparativo_consumo` (teórico/comprado/recibido/
+   despachado) — un `centro_consumo_id`, por ejemplo, tendría sentido para
+   "despachado" y parcialmente para "teórico", pero no para "comprado"
+   (`OrdenCompra` es multialmacén/distribuido, RN-15/19, sin un
+   centro_consumo único) — agregarlo de todas formas habría sido un
+   filtro que calladamente no filtra una de las 4 cifras. Se priorizó en
+   cambio un filtro nuevo por endpoint, cada uno 100% aplicable a todo lo
+   que ese endpoint devuelve: `valorizacion-inventario` gana `sede_id`
+   (`Almacen.sede_id`, columna ya existente); `comparativo-consumo` gana
+   `proveedor_id`, aplicado **solo** a `cantidad_comprada` (única de las
+   4 métricas con dimensión de proveedor real, vía
+   `OrdenCompra.contrato_id -> Contrato.proveedor_id` — documentado en el
+   docstring de `crud/reportes.py::comparativo_consumo` por qué las otras
+   3 no lo usan); `alertas` gana `producto_id`, aplicado por igual a los
+   3 sub-reportes (los tres ya unen contra `Producto`). `centro_consumo_id`
+   queda fuera, documentado como límite consciente por la razón de
+   arriba, no una omisión. Sin cambios de schema de salida (son filtros de
+   `WHERE`, no columnas nuevas). Frontend: mismo patrón `<SelectFilter>`/
+   formulario ya usado en cada página — `reportes/page.tsx` gana un
+   segundo `<SelectFilter>` (`sede_id`, alimentado por
+   `GET /catalogos/sedes`); `ComparativoConsumoForm.tsx` gana un `<select>`
+   de proveedor (`GET /proveedores?page_size=100`), con el texto de la
+   opción "Todos" aclarando que solo filtra "Comprado" para no confundir
+   sobre las otras 3 métricas; `reportes/alertas/page.tsx` gana un
+   `<SelectFilter>` de producto (`GET /productos?page_size=100`). Tests
+   nuevos en `test_reportes.py` (mismo patrón "dos X independientes" ya
+   usado para RN-20/proveedor en Sesiones 11/12/15/16): dos almacenes en
+   sedes distintas para `sede_id`; dos proveedores contratando el mismo
+   producto para `proveedor_id` (confirma que el filtro solo mueve
+   `cantidad_comprada`, no las otras 3 métricas); dos productos con stock
+   bajo en el mismo almacén para `producto_id`. `tests/test_cocina.py`
+   gana `ac.session_factory = TestSession` expuesto en el fixture `client`
+   (mismo patrón ya aplicado a `test_compras.py` en el fix anterior),
+   necesario para sembrar una sede/almacén adicional fuera del flujo HTTP
+   en el test de `sede_id`. `pytest -q` completo: 40/40 en verde. `npx tsc
+   --noEmit` + `npx eslint .` + `npx next build` limpios (mismas 61
+   rutas, sin rutas nuevas — solo cambios de filtro). Verificado de punta
+   a punta en el navegador contra un backend descartable con el seed real
+   (3 sedes/4 almacenes reales): el `<SelectFilter>` de sede en
+   `/reportes` navega a `?sede_id=1` (200, sin error); el de producto en
+   `/reportes/alertas` se renderiza vacío hasta crear un producto de
+   prueba, luego aparece en las opciones; el de proveedor en
+   `/reportes/comparativo` — tras crear un producto y un proveedor de
+   prueba — se renderiza con la razón social real y la consulta con
+   `proveedor_id` explícito responde 200 con las 4 métricas en 0 (sin
+   datos de compra en la base descartable, comportamiento esperado).
 
 ## 11. Cómo correr el proyecto
 

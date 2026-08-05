@@ -12,7 +12,7 @@ from httpx import AsyncClient
 
 from app.core.security import create_access_token
 from tests.test_cocina import _headers_admin, _ingresar_stock, _preparar_contrato_con_producto, client  # noqa: F401
-from tests.test_inspeccion import _crear_guia_completa  # noqa: F401
+from tests.test_inspeccion import _crear_guia_completa, _crear_guia_en_almacen  # noqa: F401
 
 
 def _headers_rol(rol: str) -> dict:
@@ -274,3 +274,241 @@ async def test_parametro_sistema_dias_vencimiento(client: AsyncClient):
     # eliminado el parámetro, vuelve al default de 30
     alertas_tras_eliminar = await client.get("/api/v1/reportes/alertas", headers=headers)
     assert len(alertas_tras_eliminar.json()["proximos_vencer"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_filtro_sede_id_valorizacion_inventario(client: AsyncClient):
+    """Deuda técnica: /reportes/valorizacion-inventario gana sede_id
+    (Almacen.sede_id) — dos almacenes en sedes distintas, cada uno con
+    stock propio, el filtro debe aislar solo el de la sede pedida."""
+    from app.models.organizacion import Almacen, Sede
+
+    headers = _headers_admin()
+    ctx = await _preparar_contrato_con_producto(client, headers)
+
+    async with client.session_factory() as db:
+        db.add(Sede(sede_id=2, nombre="Sede Test 2"))
+        await db.flush()
+        db.add(
+            Almacen(
+                almacen_id=2,
+                codigo="ALM-TEST-2",
+                nombre="Almacén Test 2",
+                sede_id=2,
+                tipo_comedor="ESTUDIANTES",
+                responsable_id=1,
+            )
+        )
+        await db.commit()
+
+    guia_sede_1 = await _crear_guia_en_almacen(client, headers, ctx, "OC-SEDE-1", "GR-SEDE-1", almacen_id=1)
+    await _ingresar_stock(client, headers, guia_sede_1, cantidad=40)
+
+    guia_sede_2 = await _crear_guia_en_almacen(client, headers, ctx, "OC-SEDE-2", "GR-SEDE-2", almacen_id=2)
+    await _ingresar_stock(client, headers, guia_sede_2, cantidad=40)
+
+    resp_sede_1 = await client.get("/api/v1/reportes/valorizacion-inventario", headers=headers, params={"sede_id": 1})
+    assert resp_sede_1.status_code == 200, resp_sede_1.text
+    filas_1 = resp_sede_1.json()
+    assert len(filas_1) == 1
+    assert filas_1[0]["almacen_id"] == 1
+    assert filas_1[0]["valor_valorizado_total"] == pytest.approx(40 * 5.5)
+
+    resp_sede_2 = await client.get("/api/v1/reportes/valorizacion-inventario", headers=headers, params={"sede_id": 2})
+    assert resp_sede_2.status_code == 200, resp_sede_2.text
+    filas_2 = resp_sede_2.json()
+    assert len(filas_2) == 1
+    assert filas_2[0]["almacen_id"] == 2
+    assert filas_2[0]["valor_valorizado_total"] == pytest.approx(40 * 5.5)
+
+    resp_sin_filtro = await client.get("/api/v1/reportes/valorizacion-inventario", headers=headers)
+    assert len(resp_sin_filtro.json()) == 2
+
+
+@pytest.mark.asyncio
+async def test_filtro_proveedor_id_comparativo_consumo(client: AsyncClient):
+    """Deuda técnica: /reportes/comparativo-consumo gana proveedor_id, que
+    filtra solo cantidad_comprada (única métrica con dimensión de proveedor
+    real) — mismo producto contratado por dos proveedores independientes,
+    cada uno con su propia OC."""
+    from datetime import timedelta
+
+    headers = _headers_admin()
+    ctx = await _preparar_contrato_con_producto(client, headers)
+    producto_id = ctx["producto_id"]
+
+    guia_a = await _crear_guia_completa(client, headers, ctx, "OC-PROV-A", "GR-PROV-A", cantidad=20, semana_offset_dias=0)
+    await _ingresar_stock(client, headers, guia_a, cantidad=20)
+
+    # segundo proveedor, contratando el mismo producto
+    racion_b = await client.post(
+        "/api/v1/planificacion/raciones-anuales",
+        headers=headers,
+        json={"sede_id": 1, "centro_consumo_id": 1, "anio": 2027, "poblacion_atendida": 100, "raciones_dia": 100},
+    )
+    assert racion_b.status_code == 201, racion_b.text
+    racion_anual_id_b = racion_b.json()["racion_anual_id"]
+
+    req_b = await client.post(
+        "/api/v1/requerimientos-anuales",
+        headers=headers,
+        json={
+            "racion_anual_id": racion_anual_id_b,
+            "presupuesto_referencial_total": 5000,
+            "detalle": [
+                {"producto_id": producto_id, "cantidad_estimada_anual": 1000, "unidad_id": 1, "presupuesto_referencial": 5000}
+            ],
+        },
+    )
+    assert req_b.status_code == 201, req_b.text
+    requerimiento_anual_id_b = req_b.json()["requerimiento_anual_id"]
+    for estado in ("EN_REVISION", "APROBADO"):
+        r = await client.patch(
+            f"/api/v1/requerimientos-anuales/{requerimiento_anual_id_b}/estado", headers=headers, json={"estado": estado}
+        )
+        assert r.status_code == 200, r.text
+
+    proveedor_b = await client.post(
+        "/api/v1/proveedores", headers=headers, json={"ruc": "20999999999", "razon_social": "Proveedor B SAC"}
+    )
+    assert proveedor_b.status_code == 201, proveedor_b.text
+    proveedor_id_b = proveedor_b.json()["proveedor_id"]
+
+    contrato_b = await client.post(
+        "/api/v1/contratos",
+        headers=headers,
+        json={
+            "numero_contrato": "CTR-2026-B",
+            "proveedor_id": proveedor_id_b,
+            "requerimiento_anual_id": requerimiento_anual_id_b,
+            "fecha_inicio": date.today().isoformat(),
+            "fecha_fin": (date.today() + timedelta(days=200)).isoformat(),
+            "presupuesto_total": 5000,
+        },
+    )
+    assert contrato_b.status_code == 201, contrato_b.text
+    contrato_id_b = contrato_b.json()["contrato_id"]
+
+    pc_b = await client.post(
+        f"/api/v1/contratos/{contrato_id_b}/productos",
+        headers=headers,
+        json={"producto_id": producto_id, "precio_unitario": 5.5, "cantidad_contratada": 100},
+    )
+    assert pc_b.status_code == 201, pc_b.text
+    producto_contratado_id_b = pc_b.json()["producto_contratado_id"]
+
+    menu_b = await client.post(
+        "/api/v1/planificacion/menus-quincenales",
+        headers=headers,
+        json={
+            "racion_anual_id": racion_anual_id_b,
+            "quincena_inicio": date.today().isoformat(),
+            "quincena_fin": (date.today() + timedelta(days=14)).isoformat(),
+        },
+    )
+    assert menu_b.status_code == 201, menu_b.text
+    menu_id_b = menu_b.json()["menu_id"]
+
+    ctx_b = {
+        "producto_id": producto_id,
+        "proveedor_id": proveedor_id_b,
+        "contrato_id": contrato_id_b,
+        "producto_contratado_id": producto_contratado_id_b,
+        "menu_id": menu_id_b,
+    }
+    guia_b = await _crear_guia_completa(client, headers, ctx_b, "OC-PROV-B", "GR-PROV-B", cantidad=15, semana_offset_dias=14)
+    await _ingresar_stock(client, headers, guia_b, cantidad=15)
+
+    fecha_inicio = date.today().replace(day=1)
+    fecha_fin = date.today()
+
+    resp_sin_filtro = await client.get(
+        "/api/v1/reportes/comparativo-consumo",
+        headers=headers,
+        params={"producto_id": producto_id, "fecha_inicio": fecha_inicio.isoformat(), "fecha_fin": fecha_fin.isoformat()},
+    )
+    assert resp_sin_filtro.status_code == 200, resp_sin_filtro.text
+    assert resp_sin_filtro.json()["cantidad_comprada"] == pytest.approx(35.0)  # 20 (A) + 15 (B)
+
+    resp_proveedor_a = await client.get(
+        "/api/v1/reportes/comparativo-consumo",
+        headers=headers,
+        params={
+            "producto_id": producto_id,
+            "fecha_inicio": fecha_inicio.isoformat(),
+            "fecha_fin": fecha_fin.isoformat(),
+            "proveedor_id": ctx["proveedor_id"],
+        },
+    )
+    assert resp_proveedor_a.status_code == 200, resp_proveedor_a.text
+    assert resp_proveedor_a.json()["cantidad_comprada"] == pytest.approx(20.0)
+
+    resp_proveedor_b = await client.get(
+        "/api/v1/reportes/comparativo-consumo",
+        headers=headers,
+        params={
+            "producto_id": producto_id,
+            "fecha_inicio": fecha_inicio.isoformat(),
+            "fecha_fin": fecha_fin.isoformat(),
+            "proveedor_id": proveedor_id_b,
+        },
+    )
+    assert resp_proveedor_b.status_code == 200, resp_proveedor_b.text
+    assert resp_proveedor_b.json()["cantidad_comprada"] == pytest.approx(15.0)
+
+
+@pytest.mark.asyncio
+async def test_filtro_producto_id_alertas(client: AsyncClient):
+    """Deuda técnica: /reportes/alertas gana producto_id, aplicado por
+    igual a los 3 sub-reportes (todos ya unen contra Producto) — dos
+    productos con stock bajo en el mismo almacén, el filtro debe aislar
+    solo el producto pedido."""
+    headers = _headers_admin()
+    ctx = await _preparar_contrato_con_producto(client, headers)
+    producto_id_a = ctx["producto_id"]
+
+    producto_b_resp = await client.post(
+        "/api/v1/productos",
+        headers=headers,
+        json={"codigo": "P002", "nombre": "Aceite vegetal", "categoria": "Abarrotes", "unidad_id": 1},
+    )
+    assert producto_b_resp.status_code == 201, producto_b_resp.text
+    producto_id_b = producto_b_resp.json()["producto_id"]
+
+    pc_b = await client.post(
+        f"/api/v1/contratos/{ctx['contrato_id']}/productos",
+        headers=headers,
+        json={"producto_id": producto_id_b, "precio_unitario": 5.5, "cantidad_contratada": 100},
+    )
+    assert pc_b.status_code == 201, pc_b.text
+    producto_contratado_id_b = pc_b.json()["producto_contratado_id"]
+
+    await client.patch(f"/api/v1/productos/{producto_id_a}", headers=headers, json={"stock_minimo_referencial": 30})
+    await client.patch(f"/api/v1/productos/{producto_id_b}", headers=headers, json={"stock_minimo_referencial": 30})
+
+    guia_a = await _crear_guia_completa(client, headers, ctx, "OC-PID-A", "GR-PID-A", cantidad=20, semana_offset_dias=0)
+    await _ingresar_stock(client, headers, guia_a, cantidad=20)
+
+    ctx_b = {**ctx, "producto_contratado_id": producto_contratado_id_b}
+    guia_b = await _crear_guia_completa(client, headers, ctx_b, "OC-PID-B", "GR-PID-B", cantidad=20, semana_offset_dias=7)
+    await _ingresar_stock(client, headers, guia_b, cantidad=20)
+
+    resp_sin_filtro = await client.get("/api/v1/reportes/alertas", headers=headers, params={"almacen_id": 1})
+    assert resp_sin_filtro.status_code == 200, resp_sin_filtro.text
+    assert len(resp_sin_filtro.json()["stock_bajo"]) == 2
+
+    resp_producto_a = await client.get(
+        "/api/v1/reportes/alertas", headers=headers, params={"almacen_id": 1, "producto_id": producto_id_a}
+    )
+    assert resp_producto_a.status_code == 200, resp_producto_a.text
+    stock_bajo_a = resp_producto_a.json()["stock_bajo"]
+    assert len(stock_bajo_a) == 1
+    assert stock_bajo_a[0]["producto_id"] == producto_id_a
+
+    resp_producto_b = await client.get(
+        "/api/v1/reportes/alertas", headers=headers, params={"almacen_id": 1, "producto_id": producto_id_b}
+    )
+    assert resp_producto_b.status_code == 200, resp_producto_b.text
+    stock_bajo_b = resp_producto_b.json()["stock_bajo"]
+    assert len(stock_bajo_b) == 1
+    assert stock_bajo_b[0]["producto_id"] == producto_id_b

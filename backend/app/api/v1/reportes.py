@@ -21,10 +21,11 @@ ROLES_LECTURA = ("ADMIN", "LOGISTICA_CENTRAL")
 @router.get("/valorizacion-inventario", response_model=list[ValorizacionAlmacenOut])
 async def reporte_valorizacion_inventario(
     almacen_id: int | None = None,
+    sede_id: int | None = None,
     db: AsyncSession = Depends(get_db),
     _current: CurrentUser = Depends(require_roles(*ROLES_LECTURA)),
 ) -> list[ValorizacionAlmacenOut]:
-    filas = await valorizacion_inventario(db, almacen_id=almacen_id)
+    filas = await valorizacion_inventario(db, almacen_id=almacen_id, sede_id=sede_id)
     return [ValorizacionAlmacenOut(**f) for f in filas]
 
 
@@ -33,13 +34,16 @@ async def reporte_comparativo_consumo(
     producto_id: int,
     fecha_inicio: date,
     fecha_fin: date,
+    proveedor_id: int | None = None,
     db: AsyncSession = Depends(get_db),
     _current: CurrentUser = Depends(require_roles(*ROLES_LECTURA)),
 ) -> ComparativoConsumoOut:
     """Teórico (BOM, Módulo 1A) vs. comprado (Módulo 3) vs. recibido
-    (Almacén) vs. despachado (Módulo 4), para un producto y rango de fechas."""
+    (Almacén) vs. despachado (Módulo 4), para un producto y rango de fechas.
+    `proveedor_id` solo filtra la métrica "comprado" (ver docstring de
+    crud/reportes.py::comparativo_consumo)."""
     try:
-        resultado = await comparativo_consumo(db, producto_id, fecha_inicio, fecha_fin)
+        resultado = await comparativo_consumo(db, producto_id, fecha_inicio, fecha_fin, proveedor_id=proveedor_id)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
     return ComparativoConsumoOut(**resultado)
@@ -49,6 +53,7 @@ async def reporte_comparativo_consumo(
 async def reporte_alertas(
     almacen_id: int | None = None,
     dias_vencimiento: int | None = None,
+    producto_id: int | None = None,
     db: AsyncSession = Depends(get_db),
     _current: CurrentUser = Depends(require_roles(*ROLES_LECTURA)),
 ) -> AlertasAlmacenOut:
@@ -59,5 +64,5 @@ async def reporte_alertas(
     "alertas_dias_vencimiento", Sesión 18) — 30 si tampoco está configurado."""
     if dias_vencimiento is None:
         dias_vencimiento = await obtener_entero(db, "alertas_dias_vencimiento", default=30)
-    resultado = await alertas_almacen(db, almacen_id=almacen_id, dias_vencimiento=dias_vencimiento)
+    resultado = await alertas_almacen(db, almacen_id=almacen_id, dias_vencimiento=dias_vencimiento, producto_id=producto_id)
     return AlertasAlmacenOut(**resultado)
