@@ -105,6 +105,40 @@ class CRUDActaObservacion(CRUDBase[ActaObservacion]):
         )
         return (await db.execute(stmt)).scalar_one() > 0
 
+    async def _actualizar_estado_guia(self, db: AsyncSession, acta: ActaObservacion) -> None:
+        """RN de este módulo: la guía avanza a SUBSANADO cuando ya no le
+        queda ninguna acta ABIERTA. CERRADO/PENALIZADO (RN-11) los decide
+        Módulo 5. Compartido entre registrar_reinspeccion (manual) y
+        vencer_automaticamente (job de RN-11, Sesión 20)."""
+        stmt_guia = (
+            select(Inspeccion.guia_remision_id)
+            .join(InspeccionDetalle, Inspeccion.inspeccion_id == InspeccionDetalle.inspeccion_id)
+            .where(InspeccionDetalle.inspeccion_detalle_id == acta.inspeccion_detalle_id)
+        )
+        guia_remision_id = (await db.execute(stmt_guia)).scalar_one()
+
+        if not await self._quedan_actas_abiertas(db, guia_remision_id):
+            guia = await db.get(GuiaRemision, guia_remision_id)
+            if guia.estado == "OBSERVADO":
+                guia.estado = "SUBSANADO"
+
+    async def vencer_automaticamente(self, db: AsyncSession, acta: ActaObservacion) -> ActaObservacion:
+        """RN-11 (Sesión 20, job diario en core/jobs.py::procesar_actas_vencidas):
+        una acta ABIERTA cuyo plazo_subsanacion ya pasó sin respuesta se
+        rechaza automáticamente — mismo estado terminal que pondría un
+        inspector con registrar_reinspeccion(NO_CONFORME), pero sin pasar
+        por una Subsanacion (nunca llegó ninguna). No hay CHECK de DB que
+        bloquee ABIERTA -> RECHAZADA directo (confirmado en 01_schema.sql);
+        la única validación de transición vivía en registrar_reinspeccion y
+        no aplica a este flujo."""
+        if not acta.plazo_vencido:
+            raise ValueError(f"El acta #{acta.numero_acta} todavía no tiene el plazo de subsanación vencido")
+
+        acta.estado = "RECHAZADA"
+        await db.flush()
+        await self._actualizar_estado_guia(db, acta)
+        return acta
+
     async def registrar_reinspeccion(
         self, db: AsyncSession, subsanacion_id: int, resultado_reinspeccion: str, inspector_id: int
     ) -> Subsanacion:
@@ -132,20 +166,7 @@ class CRUDActaObservacion(CRUDBase[ActaObservacion]):
         # ilimitados quedarían para una decisión de producto posterior.
         acta.estado = "SUBSANADA" if resultado_reinspeccion == "CONFORME" else "RECHAZADA"
         await db.flush()
-
-        stmt_guia = (
-            select(Inspeccion.guia_remision_id)
-            .join(InspeccionDetalle, Inspeccion.inspeccion_id == InspeccionDetalle.inspeccion_id)
-            .where(InspeccionDetalle.inspeccion_detalle_id == acta.inspeccion_detalle_id)
-        )
-        guia_remision_id = (await db.execute(stmt_guia)).scalar_one()
-
-        # RN de este módulo: la guía avanza a SUBSANADO cuando ya no le queda
-        # ninguna acta ABIERTA. CERRADO/PENALIZADO (RN-11) los decide Módulo 5.
-        if not await self._quedan_actas_abiertas(db, guia_remision_id):
-            guia = await db.get(GuiaRemision, guia_remision_id)
-            if guia.estado == "OBSERVADO":
-                guia.estado = "SUBSANADO"
+        await self._actualizar_estado_guia(db, acta)
 
         return subsanacion
 

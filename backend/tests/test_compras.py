@@ -935,3 +935,52 @@ async def test_rn_alcance_proveedor_pedidos_semanales(client: AsyncClient):
 
     detalle_ajeno = await client.get(f"/api/v1/pedidos-semanales/{pedido_b['pedido_semanal_id']}", headers=headers_proveedor_a)
     assert detalle_ajeno.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_cierre_mensual(client: AsyncClient):
+    """RN-10 (Sesión 20): gate informativo, sin efectos secundarios —
+    bloquea (listo_para_cierre=False) mientras alguna OC del periodo siga
+    sin llegar a un estado terminal, y la lista."""
+    headers = _headers_admin()
+    ctx = await _preparar_contrato_con_producto(client, headers)
+
+    periodo = date.today().replace(day=1)
+    oc_resp = await client.post(
+        "/api/v1/ordenes-compra",
+        headers=headers,
+        json={
+            "numero_oc": "OC-CIERRE-001",
+            "contrato_id": ctx["contrato_id"],
+            "periodo_mes": periodo.isoformat(),
+            "detalle": [
+                {
+                    "producto_contratado_id": ctx["producto_contratado_id"],
+                    "cantidad_solicitada": 10,
+                    "distribucion": [{"almacen_id": 1, "cantidad_distribuida": 10}],
+                }
+            ],
+        },
+    )
+    assert oc_resp.status_code == 201, oc_resp.text
+    orden_compra_id = oc_resp.json()["orden_compra_id"]
+
+    estado_antes = await client.get(
+        f"/api/v1/ordenes-compra/cierre-mensual?anio={periodo.year}&mes={periodo.month}", headers=headers
+    )
+    assert estado_antes.status_code == 200, estado_antes.text
+    body_antes = estado_antes.json()
+    assert body_antes["listo_para_cierre"] is False
+    assert any(oc["orden_compra_id"] == orden_compra_id for oc in body_antes["ordenes_pendientes"])
+
+    anular = await client.patch(
+        f"/api/v1/ordenes-compra/{orden_compra_id}/estado", headers=headers, json={"estado": "ANULADA"}
+    )
+    assert anular.status_code == 200, anular.text
+
+    estado_despues = await client.get(
+        f"/api/v1/ordenes-compra/cierre-mensual?anio={periodo.year}&mes={periodo.month}", headers=headers
+    )
+    assert estado_despues.status_code == 200, estado_despues.text
+    assert estado_despues.json()["listo_para_cierre"] is True
+    assert estado_despues.json()["ordenes_pendientes"] == []

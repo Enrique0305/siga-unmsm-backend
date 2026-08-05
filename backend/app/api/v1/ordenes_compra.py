@@ -19,6 +19,7 @@ from app.schemas.common import Page
 from app.schemas.compra import (
     AutorizacionExcedenteIn,
     AutorizacionExcedenteOut,
+    CierreMensualOut,
     OrdenCompraCreate,
     OrdenCompraDetailOut,
     OrdenCompraEstadoUpdate,
@@ -53,6 +54,21 @@ async def listar_ordenes_compra(
         almacen_ids=None if current.acceso_todos_almacenes else current.almacenes,
     )
     return Page(items=items, total=total, page=page, page_size=page_size)
+
+
+@router.get("/cierre-mensual", response_model=CierreMensualOut)
+async def cierre_mensual(
+    anio: int,
+    mes: int,
+    db: AsyncSession = Depends(get_db),
+    _current: CurrentUser = Depends(get_current_user),
+) -> CierreMensualOut:
+    """RN-10: gate informativo, sin efectos secundarios — no hay una
+    entidad "periodo" en el esquema que cerrar. Bloquea (listo_para_cierre
+    en False) si alguna OC del periodo sigue sin llegar a un estado
+    terminal (ANULADA/CERRADO/PENALIZADO), y las lista."""
+    resultado = await orden_compra_repo.verificar_cierre_periodo(db, anio, mes)
+    return CierreMensualOut(**resultado)
 
 
 @router.get("/{orden_compra_id}", response_model=OrdenCompraDetailOut)

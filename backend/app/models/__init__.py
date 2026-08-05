@@ -78,3 +78,4 @@ from app.models.pagos import (  # noqa: F401
 )
 from app.models.auditoria import AuditoriaLog  # noqa: F401
 from app.models.sistema import ParametroSistema  # noqa: F401
+from app.models.notificacion import Notificacion  # noqa: F401

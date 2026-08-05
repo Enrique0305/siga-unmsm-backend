@@ -151,6 +151,17 @@ CREATE TABLE parametro_sistema (
     CONSTRAINT fk_parametro_sistema_actualizado_por_id FOREIGN KEY (actualizado_por_id) REFERENCES usuario(usuario_id)
 );
 
+-- [RN-12] Notificaciones generadas por el job diario de alertas de
+-- contrato (Sesión 20) — sin infraestructura de email, se consultan vía API.
+CREATE TABLE notificacion (
+    notificacion_id      INT AUTO_INCREMENT PRIMARY KEY,
+    tipo                 VARCHAR(40) NOT NULL,
+    referencia_id        INT NOT NULL,
+    mensaje              VARCHAR(255) NOT NULL,
+    leida                BOOLEAN NOT NULL DEFAULT FALSE,
+    creado_en            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE adjunto (
     adjunto_id           BIGINT AUTO_INCREMENT PRIMARY KEY,
     entidad              VARCHAR(80) NOT NULL,

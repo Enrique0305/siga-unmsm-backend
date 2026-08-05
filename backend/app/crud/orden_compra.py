@@ -1,3 +1,5 @@
+from datetime import date
+
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -17,6 +19,12 @@ TRANSICIONES_VALIDAS: dict[str, set[str]] = {
     "CERRADO": set(),
     "PENALIZADO": set(),
 }
+
+# RN-10 (Sesión 20): estados terminales reales de OrdenCompra. El "PAGADO"
+# del texto de la regla no es un estado de OrdenCompra — es de
+# InformeConformidadPago (entidad separada, ver crud/informe_conformidad.py);
+# el equivalente aquí es que la OC ya haya salido de EMITIDA.
+ESTADOS_TERMINALES_OC = {"ANULADA", "CERRADO", "PENALIZADO"}
 
 
 class CRUDOrdenCompra(CRUDBase[OrdenCompra]):
@@ -151,6 +159,23 @@ class CRUDOrdenCompra(CRUDBase[OrdenCompra]):
 
         await db.flush()
         return oc
+
+    async def verificar_cierre_periodo(self, db: AsyncSession, anio: int, mes: int) -> dict:
+        """RN-10: gate informativo, sin efectos secundarios — no existe una
+        entidad "periodo" en el esquema que cerrar, así que esto solo lista
+        qué OC del periodo siguen sin llegar a un estado terminal."""
+        inicio = date(anio, mes, 1)
+        fin = date(anio + 1, 1, 1) if mes == 12 else date(anio, mes + 1, 1)
+
+        stmt = select(OrdenCompra).where(OrdenCompra.periodo_mes >= inicio, OrdenCompra.periodo_mes < fin)
+        ordenes = (await db.execute(stmt)).scalars().all()
+
+        pendientes = [oc for oc in ordenes if oc.estado not in ESTADOS_TERMINALES_OC]
+        return {
+            "total_ordenes": len(ordenes),
+            "listo_para_cierre": len(pendientes) == 0,
+            "ordenes_pendientes": pendientes,
+        }
 
     def validar_transicion(self, estado_actual: str, estado_nuevo: str) -> None:
         permitidos = TRANSICIONES_VALIDAS.get(estado_actual, set())

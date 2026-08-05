@@ -313,7 +313,8 @@ MySQL corriendo para testear lógica de negocio.
    5)** — quedan pendientes los dos puntos transversales de abajo. Sin
    cron para RN-10/11 (cierre mensual masivo / plazo vencido), mismo
    hueco ya documentado para RN-12: cada OC se cierra una por una vía
-   el endpoint.
+   el endpoint. **Cerrado en la Sesión 20** (jobs automáticos RN-11/RN-12
+   vía APScheduler + endpoint de cierre mensual para RN-10).
 7. ~~**Reportes y auditoría**~~ ✅ implementado. `auditoria_log` se
    llena con un **evento SQLAlchemy global** (`core/audit.py`,
    `@event.listens_for(Session, "after_flush")` sobre la clase base
@@ -1326,6 +1327,110 @@ MySQL corriendo para testear lógica de negocio.
    navegador (sin cambios de frontend); `npx tsc --noEmit` + `npx
    eslint .` no aplican por el mismo motivo — no se tocó ningún archivo
    `.ts`/`.tsx`.
+   ~~**Sesión 20 — Jobs automáticos RN-10/RN-11/RN-12**~~ ✅ implementado.
+   Cierra el último punto grande documentado como pendiente: estas tres
+   reglas piden "job automático"/"job diario" en el diseño original, y el
+   proyecto no tenía ninguna infraestructura de scheduling ni de
+   notificaciones. Investigado a fondo (2 agentes de exploración) antes de
+   planear: **RN-10** ("cierre mensual") resultó ser una validación
+   disparada por un usuario, no un cron — se implementó como un endpoint
+   de solo lectura, sin infraestructura nueva. **RN-11** y **RN-12** sí
+   piden ejecución automática periódica, así que se agregó
+   **APScheduler** (`apscheduler==3.10.4`, `AsyncIOScheduler` in-process
+   dentro del proceso `api` vía el `lifespan` de FastAPI — el
+   `docker-compose.yml` no tiene ningún servicio worker separado y agregar
+   uno habría sido sobre-ingeniería para una sola instancia sin réplicas).
+   Sin infraestructura de email en el proyecto (confirmado con grep) —
+   "Notificación a Logística" (RN-12) se materializa como una tabla
+   `notificacion` nueva, consultable vía `GET /notificaciones`, no un
+   correo real.
+   **RN-11 es la primera mutación automática del backend sin acción de
+   usuario** (cierra la OC y aplica penalidad sin revisión humana) — se
+   diseñó para reutilizar al máximo `crud/informe_conformidad.py::
+   cerrar_orden_compra`, ya existente y probado desde el Módulo 5 (Sesión
+   9): el job solo marca la acta vencida como `RECHAZADA`
+   (`crud/acta_observacion.py::vencer_automaticamente`, nuevo — mismo
+   estado terminal que pondría un inspector con
+   `registrar_reinspeccion(NO_CONFORME)`, pero sin pasar por una
+   `Subsanacion` porque nunca llegó ninguna; no hay CHECK de DB que
+   bloquee `ABIERTA -> RECHAZADA` directo) y llama la función ya
+   existente — el cálculo de la `Penalidad` (monto = cantidad rechazada ×
+   precio de la línea) no se reimplementó, se disparó solo. El bloque
+   compartido de "la guía pasa a SUBSANADO si ya no le queda ninguna acta
+   ABIERTA" se extrajo de `registrar_reinspeccion` a un helper
+   `_actualizar_estado_guia`, reutilizado por ambos flujos (manual y
+   automático) — sin duplicar el código de esa transición.
+   **Auditoría (RN-08) de las mutaciones del job**: `core/audit.py::
+   current_usuario_id` (el `ContextVar` que alimenta `AuditoriaLog`) solo
+   se llena en requests HTTP vía `AuditContextMiddleware`; confirmado
+   leyendo el código que si el job corre sin request, el evento
+   `after_flush` simplemente no audita nada (no lanza, no inserta con
+   `NULL` — `AuditoriaLog.usuario_id` no es nullable). Para que estas
+   mutaciones sí queden auditadas (son cambios de negocio reales, no
+   siembra), `core/jobs.py::procesar_actas_vencidas` fija
+   `current_usuario_id` al `responsable_id` ya existente de la entidad que
+   está tocando (el de la propia `ActaObservacion`/`OrdenCompra`) justo
+   antes de cada mutación, y lo resetea después — sin inventar un
+   "usuario de sistema" nuevo, reutilizando un FK ya válido y presente en
+   la fila. Verificado con SQL logging que efectivamente se insertan filas
+   en `auditoria_log` para `acta_observacion`, `penalidad`, `orden_compra`
+   y `guia_remision` durante la corrida del job.
+   **Esquema**: tabla nueva `notificacion` (`notificacion_id`, `tipo`,
+   `referencia_id`, `mensaje`, `leida`, `creado_en` — sin FK a `usuario`,
+   es un log de alertas, no un "documento" de RN-08, así que
+   `procesar_alertas_contratos` no fija `current_usuario_id`), agregada a
+   `db/init/01_schema.sql` + `db/patches_historicos/13_parche_notificacion.sql`.
+   **Backend**: `models/notificacion.py`, `schemas/notificacion.py`,
+   `crud/notificacion.py` (`CRUDNotificacion(CRUDBase)` +
+   `existe_no_leida`/`marcar_leida`), `api/v1/notificaciones.py` (`GET`
+   paginado + `PATCH .../leida`, roles `ADMIN, LOGISTICA_CENTRAL` — a
+   quien está dirigida la alerta). `core/jobs.py` (nuevo):
+   `procesar_actas_vencidas` (RN-11) y `procesar_alertas_contratos`
+   (RN-12, reutiliza `Contrato.calcular_alerta_vigencia`/
+   `ProductoContratado.calcular_alerta_saldo` y los umbrales de
+   `parametro_sistema` de la Sesión 19; dedup: no re-notifica mientras la
+   alerta previa siga sin marcarse `leida`). `core/scheduler.py` (nuevo):
+   `AsyncIOScheduler` con dos jobs `cron` a horas fijas (02:00/03:00, sin
+   volverlas configurables — RN-11/12 no lo piden), cada uno abre su
+   propia sesión con `AsyncSessionLocal` y comitea. `main.py` pasa de
+   wiring module-level a `lifespan=asynccontextmanager` — confirmado que
+   `httpx.ASGITransport` (toda la suite de tests) no dispara el lifespan
+   por defecto, así que los tests nunca arrancan el scheduler real.
+   `crud/orden_compra.py::verificar_cierre_periodo` (RN-10): filtra
+   `OrdenCompra.periodo_mes` por año+mes (columna client-supplied sin
+   normalizar a día 1), separa terminales (`ANULADA`/`CERRADO`/
+   `PENALIZADO` — el "PAGADO" del texto de RN-10 no es un estado de
+   `OrdenCompra`, es de `InformeConformidadPago`, entidad separada) de
+   pendientes; expuesto en `GET /ordenes-compra/cierre-mensual?anio=&mes=`,
+   sin efectos secundarios (no hay entidad "periodo" en el esquema que
+   cerrar).
+   **Sin cambios de frontend** — una futura sesión podría agregar una
+   pantalla para `/notificaciones`, documentado como próximo paso posible,
+   no parte de esta sesión (el objetivo era cerrar el hueco de
+   automatización backend).
+   **Test nuevo**: `tests/test_jobs.py` (primer archivo que llama
+   funciones de `core/jobs.py` directo con una `AsyncSession` cruda en vez
+   de pasar por `httpx.AsyncClient` — estos jobs no tienen, ni deben
+   tener, un endpoint HTTP que los dispare; el fixture `client` expone
+   `client.session_factory` para abrir esa sesión cruda contra el mismo
+   engine en memoria): caso de una sola línea observada con acta vencida
+   → OC cierra sola `PENALIZADO` con `Penalidad` automática y guía
+   `SUBSANADO`; caso de dos líneas donde solo una acta vence → la OC no
+   se fuerza a cerrar (sigue `EMITIDA`, sin excepción no controlada);
+   alertas de contrato con dedup (correr el job dos veces sin cambios no
+   duplica, marcar `leída` sí dispara una nueva en la siguiente corrida).
+   `test_compras.py` gana `test_cierre_mensual` para RN-10. `pytest -q`
+   completo: 36/36 en verde. Verificado además con un backend descartable
+   real: `uvicorn`/lifespan arrancan sin excepción (el scheduler se
+   inicia limpio) → flujo completo por API hasta una acta con
+   `plazo_subsanacion` vencido → job corrido directo contra el mismo
+   archivo SQLite (mismo mecanismo que usaría APScheduler) →
+   confirmado por API que el acta quedó `RECHAZADA`, la OC `PENALIZADO`,
+   la guía `SUBSANADO`, la `Penalidad` con el monto correcto
+   (220.0 = 40 × 5.5) y 2 filas nuevas en `auditoria_log` para
+   `orden_compra` → job de RN-12 corrido igual, confirmado que crea las 2
+   notificaciones esperadas → `GET /ordenes-compra/cierre-mensual` con la
+   OC ya en estado terminal → `listo_para_cierre=true`.
 
 ## 11. Cómo correr el proyecto
 

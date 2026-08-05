@@ -127,6 +127,17 @@ class OrdenCompraEstadoUpdate(BaseModel):
     estado: str = Field(description="ANULADA | CERRADO")
 
 
+class CierreMensualOut(BaseModel):
+    """RN-10 (Sesión 20): gate informativo de cierre mensual, sin efectos
+    secundarios — no hay entidad "periodo" en el esquema que marcar como
+    cerrada, solo se listan las OC del periodo que aún no llegan a un
+    estado terminal."""
+
+    total_ordenes: int
+    listo_para_cierre: bool
+    ordenes_pendientes: list[OrdenCompraOut]
+
+
 # -------------------------------------------------------------- pedido semanal
 class PedidoSemanalCreate(BaseModel):
     orden_compra_id: int

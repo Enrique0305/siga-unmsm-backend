@@ -1,3 +1,6 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -5,6 +8,18 @@ import app.core.audit  # noqa: F401  registra el evento de auditoría (RN-08)
 from app.api.middleware import AuditContextMiddleware
 from app.api.v1.router import api_router
 from app.core.config import settings
+from app.core.scheduler import detener_scheduler, iniciar_scheduler
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    # Jobs automáticos RN-11/RN-12 (Sesión 20) — in-process, ver core/scheduler.py.
+    # httpx.ASGITransport (usado por toda la suite de tests) no dispara el
+    # lifespan por defecto, así que los tests nunca arrancan el scheduler real.
+    iniciar_scheduler()
+    yield
+    detener_scheduler()
+
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -16,6 +31,7 @@ app = FastAPI(
     ),
     openapi_url=f"{settings.API_V1_PREFIX}/openapi.json",
     docs_url=f"{settings.API_V1_PREFIX}/docs",
+    lifespan=lifespan,
 )
 
 app.add_middleware(AuditContextMiddleware)
