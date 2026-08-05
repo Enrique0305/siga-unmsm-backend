@@ -25,6 +25,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  BomConsolidadoOut,
   CalcularDosificacionApiV1PlanificacionDiasMenuDiaIdDosificacionPostParams,
   DosificacionDetalleOut,
   HTTPValidationError,
@@ -43,7 +44,8 @@ import type {
   PlatoOut,
   RacionAnualCreate,
   RacionAnualEstadoUpdate,
-  RacionAnualOut
+  RacionAnualOut,
+  RequerimientoAnualDetailOut
 } from '../../model';
 
 import { apiFetch } from '../../../mutator';
@@ -492,7 +494,215 @@ export const useCambiarEstadoRacionAnualApiV1PlanificacionRacionesAnualesRacionA
       > => {
       return useMutation(getCambiarEstadoRacionAnualApiV1PlanificacionRacionesAnualesRacionAnualIdEstadoPatchMutationOptions(options), queryClient);
     }
-    export type listarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGetResponse200 = {
+    export type consolidarRequerimientoApiV1PlanificacionRacionesAnualesRacionAnualIdConsolidarRequerimientoPostResponse201 = {
+  data: RequerimientoAnualDetailOut
+  status: 201
+}
+
+export type consolidarRequerimientoApiV1PlanificacionRacionesAnualesRacionAnualIdConsolidarRequerimientoPostResponse422 = {
+  data: HTTPValidationError
+  status: 422
+}
+
+export type consolidarRequerimientoApiV1PlanificacionRacionesAnualesRacionAnualIdConsolidarRequerimientoPostResponseSuccess = (consolidarRequerimientoApiV1PlanificacionRacionesAnualesRacionAnualIdConsolidarRequerimientoPostResponse201) & {
+  headers: Headers;
+};
+export type consolidarRequerimientoApiV1PlanificacionRacionesAnualesRacionAnualIdConsolidarRequerimientoPostResponseError = (consolidarRequerimientoApiV1PlanificacionRacionesAnualesRacionAnualIdConsolidarRequerimientoPostResponse422) & {
+  headers: Headers;
+};
+
+export type consolidarRequerimientoApiV1PlanificacionRacionesAnualesRacionAnualIdConsolidarRequerimientoPostResponse = (consolidarRequerimientoApiV1PlanificacionRacionesAnualesRacionAnualIdConsolidarRequerimientoPostResponseSuccess | consolidarRequerimientoApiV1PlanificacionRacionesAnualesRacionAnualIdConsolidarRequerimientoPostResponseError)
+
+export const getConsolidarRequerimientoApiV1PlanificacionRacionesAnualesRacionAnualIdConsolidarRequerimientoPostUrl = (racionAnualId: number,) => {
+
+
+
+
+  return `/api/v1/planificacion/raciones-anuales/${racionAnualId}/consolidar-requerimiento`
+}
+
+/**
+ * @summary Consolida la dosificación (BOM) ya calculada de toda la ración anual en un Requerimiento Anual
+ */
+export const consolidarRequerimientoApiV1PlanificacionRacionesAnualesRacionAnualIdConsolidarRequerimientoPost = async (racionAnualId: number, options?: Parameters<typeof apiFetch>[1]): Promise<consolidarRequerimientoApiV1PlanificacionRacionesAnualesRacionAnualIdConsolidarRequerimientoPostResponse> => {
+
+  return apiFetch<consolidarRequerimientoApiV1PlanificacionRacionesAnualesRacionAnualIdConsolidarRequerimientoPostResponse>(getConsolidarRequerimientoApiV1PlanificacionRacionesAnualesRacionAnualIdConsolidarRequerimientoPostUrl(racionAnualId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getConsolidarRequerimientoApiV1PlanificacionRacionesAnualesRacionAnualIdConsolidarRequerimientoPostMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof consolidarRequerimientoApiV1PlanificacionRacionesAnualesRacionAnualIdConsolidarRequerimientoPost>>, TError,{racionAnualId: number}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof consolidarRequerimientoApiV1PlanificacionRacionesAnualesRacionAnualIdConsolidarRequerimientoPost>>, TError,{racionAnualId: number}, TContext> => {
+
+const mutationKey = ['consolidarRequerimientoApiV1PlanificacionRacionesAnualesRacionAnualIdConsolidarRequerimientoPost'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof consolidarRequerimientoApiV1PlanificacionRacionesAnualesRacionAnualIdConsolidarRequerimientoPost>>, {racionAnualId: number}> = (props) => {
+          const {racionAnualId} = props ?? {};
+
+          return  consolidarRequerimientoApiV1PlanificacionRacionesAnualesRacionAnualIdConsolidarRequerimientoPost(racionAnualId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConsolidarRequerimientoApiV1PlanificacionRacionesAnualesRacionAnualIdConsolidarRequerimientoPostMutationResult = NonNullable<Awaited<ReturnType<typeof consolidarRequerimientoApiV1PlanificacionRacionesAnualesRacionAnualIdConsolidarRequerimientoPost>>>
+
+    export type ConsolidarRequerimientoApiV1PlanificacionRacionesAnualesRacionAnualIdConsolidarRequerimientoPostMutationError = HTTPValidationError
+
+    /**
+ * @summary Consolida la dosificación (BOM) ya calculada de toda la ración anual en un Requerimiento Anual
+ */
+export const useConsolidarRequerimientoApiV1PlanificacionRacionesAnualesRacionAnualIdConsolidarRequerimientoPost = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof consolidarRequerimientoApiV1PlanificacionRacionesAnualesRacionAnualIdConsolidarRequerimientoPost>>, TError,{racionAnualId: number}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof consolidarRequerimientoApiV1PlanificacionRacionesAnualesRacionAnualIdConsolidarRequerimientoPost>>,
+        TError,
+        {racionAnualId: number},
+        TContext
+      > => {
+      return useMutation(getConsolidarRequerimientoApiV1PlanificacionRacionesAnualesRacionAnualIdConsolidarRequerimientoPostMutationOptions(options), queryClient);
+    }
+    export type obtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGetResponse200 = {
+  data: BomConsolidadoOut[]
+  status: 200
+}
+
+export type obtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGetResponse422 = {
+  data: HTTPValidationError
+  status: 422
+}
+
+export type obtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGetResponseSuccess = (obtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGetResponse200) & {
+  headers: Headers;
+};
+export type obtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGetResponseError = (obtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGetResponse422) & {
+  headers: Headers;
+};
+
+export type obtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGetResponse = (obtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGetResponseSuccess | obtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGetResponseError)
+
+export const getObtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGetUrl = (racionAnualId: number,) => {
+
+
+
+
+  return `/api/v1/planificacion/raciones-anuales/${racionAnualId}/bom-consolidado`
+}
+
+/**
+ * @summary Desglose por almacén de la última consolidación BOM generada para esta ración anual
+ */
+export const obtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGet = async (racionAnualId: number, options?: Parameters<typeof apiFetch>[1]): Promise<obtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGetResponse> => {
+
+  return apiFetch<obtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGetResponse>(getObtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGetUrl(racionAnualId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getObtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGetQueryKey = (racionAnualId: number,) => {
+    return [
+    `/api/v1/planificacion/raciones-anuales/${racionAnualId}/bom-consolidado`
+    ] as const;
+    }
+
+
+export const getObtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGetQueryOptions = <TData = Awaited<ReturnType<typeof obtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGet>>, TError = HTTPValidationError>(racionAnualId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof obtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getObtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGetQueryKey(racionAnualId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof obtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGet>>> = ({ signal }) => obtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGet(racionAnualId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: racionAnualId !== null && racionAnualId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof obtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ObtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGetQueryResult = NonNullable<Awaited<ReturnType<typeof obtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGet>>>
+export type ObtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGetQueryError = HTTPValidationError
+
+
+export function useObtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGet<TData = Awaited<ReturnType<typeof obtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGet>>, TError = HTTPValidationError>(
+ racionAnualId: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof obtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof obtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGet>>,
+          TError,
+          Awaited<ReturnType<typeof obtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useObtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGet<TData = Awaited<ReturnType<typeof obtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGet>>, TError = HTTPValidationError>(
+ racionAnualId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof obtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof obtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGet>>,
+          TError,
+          Awaited<ReturnType<typeof obtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useObtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGet<TData = Awaited<ReturnType<typeof obtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGet>>, TError = HTTPValidationError>(
+ racionAnualId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof obtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Desglose por almacén de la última consolidación BOM generada para esta ración anual
+ */
+
+export function useObtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGet<TData = Awaited<ReturnType<typeof obtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGet>>, TError = HTTPValidationError>(
+ racionAnualId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof obtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getObtenerBomConsolidadoApiV1PlanificacionRacionesAnualesRacionAnualIdBomConsolidadoGetQueryOptions(racionAnualId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export type listarMenusQuincenalesApiV1PlanificacionMenusQuincenalesGetResponse200 = {
   data: PageMenuQuincenalOut
   status: 200
 }

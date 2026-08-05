@@ -28,7 +28,7 @@ from app.models.planificacion import (  # noqa: F401
     RequerimientoAnual,
     RequerimientoAnualDetalle,
 )
-from app.models.dosificacion import DosificacionDetalle  # noqa: F401
+from app.models.dosificacion import BomConsolidado, DosificacionDetalle  # noqa: F401
 from app.models.contratos import (  # noqa: F401
     Contrato,
     CronogramaEntrega,

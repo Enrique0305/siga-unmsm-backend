@@ -1,10 +1,11 @@
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import DateTime, ForeignKey, func
+from sqlalchemy import Date, DateTime, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base
-from app.models.catalogos import Alimento
+from app.db.base import Base, BigIntPK
+from app.models.catalogos import Alimento, Producto
+from app.models.organizacion import Almacen
 
 
 class DosificacionDetalle(Base):
@@ -23,3 +24,29 @@ class DosificacionDetalle(Base):
     calculado_en: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     alimento: Mapped["Alimento"] = relationship(lazy="joined")
+
+
+class BomConsolidado(Base):
+    """Explosión de materiales consolidada por periodo y almacén (RN-28).
+
+    Foto de referencia generada al consolidar un requerimiento anual desde
+    la dosificación ya calculada — ver crud/bom_consolidado.py. bom_consolidado_id
+    es BIGINT en MySQL (ver CLAUDE.md sección 7.4, gotcha de SQLite/BigIntPK).
+    """
+
+    __tablename__ = "bom_consolidado"
+
+    bom_consolidado_id: Mapped[int] = mapped_column(BigIntPK, primary_key=True)
+    tipo_periodo: Mapped[str] = mapped_column(String(20))  # SEMANA, QUINCENA, MES, ANIO
+    periodo_inicio: Mapped[date] = mapped_column(Date)
+    periodo_fin: Mapped[date] = mapped_column(Date)
+    almacen_id: Mapped[int] = mapped_column(ForeignKey("almacen.almacen_id"))
+    producto_id: Mapped[int] = mapped_column(ForeignKey("producto.producto_id"))
+    cantidad_requerida_total: Mapped[float]
+    stock_disponible_referencia: Mapped[float | None]
+    saldo_contractual_referencia: Mapped[float | None]
+    estado_suficiencia: Mapped[str | None] = mapped_column(String(20))  # SUFICIENTE, ALERTA_STOCK, ALERTA_CONTRATO
+    generado_en: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    almacen: Mapped["Almacen"] = relationship(lazy="joined")
+    producto: Mapped["Producto"] = relationship(lazy="joined")

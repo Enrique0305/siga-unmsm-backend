@@ -1,10 +1,13 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { CambiarEstadoRacion } from "@/components/planificacion/CambiarEstadoRacion";
+import { ConsolidarRequerimientoForm } from "@/components/planificacion/ConsolidarRequerimientoForm";
 import { Badge } from "@/components/ui/Badge";
 import { ServerFetchError, serverFetch } from "@/lib/api/server-fetch";
 import { getSession } from "@/lib/auth/session";
 import type { CentroConsumoOut } from "@/lib/api/generated/model/centroConsumoOut";
+import type { PageRequerimientoAnualOut } from "@/lib/api/generated/model/pageRequerimientoAnualOut";
 import type { RacionAnualOut } from "@/lib/api/generated/model/racionAnualOut";
 import type { SedeOut } from "@/lib/api/generated/model/sedeOut";
 
@@ -34,6 +37,11 @@ export default async function RacionAnualDetailPage({
   const puedeEditar = session ? ROLES_EDICION.includes(session.rol) : false;
   const sede = sedes.find((s) => s.sede_id === racion.sede_id);
   const centro = centros.find((c) => c.centro_consumo_id === racion.centro_consumo_id);
+
+  const requerimientos = await serverFetch<PageRequerimientoAnualOut>(
+    `/requerimientos-anuales?racion_anual_id=${racion.racion_anual_id}&page_size=1`,
+  );
+  const requerimientoExistente = requerimientos.items[0] ?? null;
 
   return (
     <div className="space-y-6">
@@ -68,6 +76,24 @@ export default async function RacionAnualDetailPage({
           <div className="mt-4">
             <CambiarEstadoRacion racionAnualId={racion.racion_anual_id} estadoActual={racion.estado} />
           </div>
+        )}
+      </div>
+
+      <div className="rounded-lg border border-border/20 bg-white p-6">
+        <h3 className="mb-3 text-sm font-semibold text-foreground">Requerimiento anual (BOM)</h3>
+        {requerimientoExistente ? (
+          <Link
+            href={`/planificacion/requerimientos/${requerimientoExistente.requerimiento_anual_id}`}
+            className="text-sm font-medium text-primary hover:underline"
+          >
+            Ver requerimiento anual generado
+          </Link>
+        ) : puedeEditar ? (
+          <ConsolidarRequerimientoForm racionAnualId={racion.racion_anual_id} />
+        ) : (
+          <p className="text-sm text-text-secondary">
+            Todavía no se generó un requerimiento anual para esta ración.
+          </p>
         )}
       </div>
     </div>

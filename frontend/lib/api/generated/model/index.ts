@@ -24,6 +24,7 @@ export * from './auditoriaLogOut';
 export * from './auditoriaLogOutDetalleJson';
 export * from './autorizacionExcedenteIn';
 export * from './autorizacionExcedenteOut';
+export * from './bomConsolidadoOut';
 export * from './calcularDosificacionApiV1PlanificacionDiasMenuDiaIdDosificacionPostParams';
 export * from './categoriaAlimentoOut';
 export * from './centroConsumoOut';

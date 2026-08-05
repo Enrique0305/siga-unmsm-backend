@@ -204,7 +204,7 @@ o recetas) · RN-27 (pedido semanal separado por almacén+comedor) · RN-28
 | Planificación/Menús (RacionAnual + MenuQuincenal + MenuDia/Plato, RN-22) | `models/planificacion.py`, `crud/planificacion.py` (`CRUDRacionAnual`/`CRUDMenuQuincenal` con `TRANSICIONES_VALIDAS_RACION`/`_MENU`) | `raciones-anuales` CRUD (sin Update) + `/estado`, `menus-quincenales` CRUD (sin Update) + `/estado` + `/dias`, `dias/{id}` + `/platos` | ✅ `tests/test_planificacion.py` |
 | Dosificación/BOM automático (RN-24/27/28) | `models/dosificacion.py`, `crud/dosificacion.py` | `POST/GET /planificacion/dias/{id}/dosificacion` | ✅ |
 | Producto (catálogo logístico, prerrequisito Módulo 2) | `models/catalogos.py::Producto`, `crud/producto.py` | `GET/POST/PATCH /productos` | ✅ `tests/test_contratos.py` |
-| Requerimiento anual (prerrequisito Módulo 2, CRUD manual sin auto-consolidación BOM) | `models/planificacion.py::RequerimientoAnual(Detalle)`, `crud/requerimiento.py` | CRUD + `/estado` (BORRADOR→EN_REVISION→APROBADO→VIGENTE) | ✅ `tests/test_contratos.py`, `tests/test_planificacion.py` |
+| Requerimiento anual (CRUD manual + consolidación automática desde BOM, Sesión 13) | `models/planificacion.py::RequerimientoAnual(Detalle)`, `crud/requerimiento.py`, `crud/bom_consolidado.py` | CRUD + `/estado` (BORRADOR→EN_REVISION→APROBADO→VIGENTE) + `POST/GET /planificacion/raciones-anuales/{id}/consolidar-requerimiento` \| `/bom-consolidado` | ✅ `tests/test_contratos.py`, `tests/test_planificacion.py` |
 | Módulo 2 — Proveedores/Contratos (RN-12/19) | `models/contratos.py`, `crud/proveedor.py`, `crud/contrato.py` | `/proveedores`, `/contratos` + `/estado` + `/cronograma` + `/productos` | ✅ `tests/test_contratos.py` |
 | Módulo 3 — Compras (RN-01/02/03/09/13/15/16/19) | `models/compras.py` (incl. `AutorizacionExcedente`), `crud/orden_compra.py`, `crud/pedido_semanal.py`, `crud/guia_remision.py` | `/ordenes-compra` + `/estado` + `/detalle/{id}/autorizaciones-excedente`, `/pedidos-semanales`, `/guias-remision` + `/detalle` | ✅ `tests/test_compras.py` |
 | Inspección/Actas (RN-04/05/11, dueño de `guia_remision.estado`) | `models/inspeccion.py`, `crud/inspeccion.py`, `crud/acta_observacion.py` | `/inspecciones`, `/actas-observacion` + `/desde-inspeccion-detalle/{id}` + `/subsanaciones` + `/subsanaciones/{id}/reinspeccion` | ✅ `tests/test_inspeccion.py` |
@@ -231,8 +231,9 @@ MySQL corriendo para testear lógica de negocio.
    vía `Contrato.alerta_vigencia` / `ProductoContratado.alerta_saldo`, no
    hay job/cron todavía). De paso se construyeron dos prerrequisitos que no
    existían: `Producto` (catálogo logístico) y `RequerimientoAnual` (CRUD
-   manual — la consolidación automática BOM → requerimiento anual sigue
-   pendiente, ver punto 2).
+   manual — la consolidación automática BOM → requerimiento anual quedó
+   pendiente en este punto y se cerró recién en la Sesión 13, ver el
+   listado de sesiones más abajo).
 2. ~~**Módulo 3 — Compras**~~ ✅ implementado (`orden_compra` +
    `orden_compra_distribucion` multialmacén, `pedido_semanal`,
    `guia_remision` + `guia_remision_detalle`, `autorizacion_excedente`). El
@@ -249,10 +250,9 @@ MySQL corriendo para testear lógica de negocio.
    módulo nuevo, revisarlo completo (`grep -n "CREATE TABLE"` sobre todo
    el archivo), no solo el bloque con el nombre del módulo. Límite que
    sigue pendiente: el rol `PROVEEDOR` no está acotado a sus propios
-   documentos porque `Usuario` no tiene FK a `Proveedor`. Sigue pendiente
-   cerrar la consolidación automática de `bom_consolidado` →
-   `requerimiento_anual_detalle` como mejora del Módulo 1, si se necesita
-   antes de escalar el uso real.
+   documentos porque `Usuario` no tiene FK a `Proveedor` — cerrado en la
+   Sesión 12. La consolidación automática de `bom_consolidado` →
+   `requerimiento_anual_detalle` se cerró en la Sesión 13.
 3. ~~**Inspección/Actas**~~ ✅ implementado (`inspeccion`,
    `inspeccion_detalle`, `acta_observacion`, `subsanacion`). Ahora sí es
    dueño de `guia_remision.estado`, que avanza `PENDIENTE → PARCIAL →
@@ -866,6 +866,78 @@ MySQL corriendo para testear lógica de negocio.
    tocó en esta sesión). `npx tsc --noEmit` + `npx eslint .` +
    `npx next build` limpios sobre el repo completo (mismas 58 rutas, sin
    rutas nuevas — solo cambios de formulario).
+   ~~**Sesión 13 — Consolidación automática BOM → Requerimiento anual**~~ ✅
+   implementado. Cierra la deuda documentada desde la Sesión 2: hasta ahora
+   `RequerimientoAnual` era 100% entrada manual pese a que el Módulo 1A ya
+   calcula, por día de menú, la explosión de materiales real (RN-24,
+   `DosificacionDetalle`). `bom_consolidado` existía en `01_schema.sql`
+   desde el bootstrapping inicial pero nunca tuvo modelo ORM (confirmado
+   con grep sobre todo `backend/` antes de empezar) — se mapeó en
+   `models/dosificacion.py::BomConsolidado` (mismo archivo que
+   `DosificacionDetalle`; `bom_consolidado_id` es `BIGINT AUTO_INCREMENT`,
+   así que usa `BigIntPK` de `db/base.py`, gotcha ya conocido de sección
+   7.4). Puente real que no existía en ningún código previo:
+   `DosificacionDetalle.alimento_id` (catálogo nutricional) se une a
+   `Producto.alimento_id` (nullable, no único a nivel de esquema — se
+   asume 1:1 en la práctica, límite documentado) para llegar a
+   `Producto.producto_id`, que es lo que `RequerimientoAnualDetalle`
+   realmente requiere.
+   Backend: `crud/bom_consolidado.py::ServicioBomConsolidado.
+   generar_y_consolidar` agrega `dosificacion_detalle` de **todos** los
+   días de menú de una `RacionAnual` (join `MenuDia`→`MenuQuincenal`
+   filtrado por `racion_anual_id`, agrupado por almacén+producto), calcula
+   `stock_disponible_referencia` (foto de `StockAlmacenProducto.
+   stock_fisico`) y `saldo_contractual_referencia` (suma de
+   `ProductoContratado.saldo_fisico` de contratos `VIGENTE` para ese
+   producto, RN-19 GLOBAL), inserta filas `BomConsolidado` (idempotente:
+   borra+recrea las del mismo periodo+almacén+producto, mismo patrón que
+   `ServicioDosificacion.calcular_dia`) y reutiliza
+   `requerimiento_repo.crear_con_detalle` tal cual para crear el
+   `RequerimientoAnual`(BORRADOR) sumando cantidades entre almacenes.
+   Dos endpoints nuevos en `api/v1/planificacion.py`: `POST .../raciones-
+   anuales/{id}/consolidar-requerimiento` (roles `ADMIN, NUTRICION`,
+   reutiliza `ROLES_EDICION` ya definido) y `GET .../bom-consolidado`
+   (cualquier usuario autenticado). Límites explícitos de esta versión
+   (documentados también en el docstring del servicio, mismo criterio que
+   otros MVP de sesiones anteriores): `tipo_periodo` fijo en `"ANIO"`
+   (1 ene/31 dic del año de la ración anual — la tabla soporta SEMANA/
+   QUINCENA/MES pero no se expone esa granularidad); `estado_suficiencia`
+   solo distingue `SUFICIENTE`/`ALERTA_CONTRATO` (comparando cantidad
+   requerida vs. saldo contractual) — `ALERTA_STOCK` no se genera porque
+   no hay una regla clara en el diseño para combinar stock físico con
+   saldo contractual sin inventar una fórmula arbitraria; un solo
+   `RequerimientoAnual` por `racion_anual_id` (422 si ya existe uno,
+   cualquier estado — evita la complejidad de un flujo de "nueva versión"
+   que no existía para reutilizar); `bom_consolidado` no tiene columna
+   `racion_anual_id` en el esquema, así que la lectura se scope por año
+   calendario, no por ración exacta (si dos raciones anuales del mismo año
+   consolidan el mismo almacén+producto, la segunda reemplaza la foto de
+   la primera — límite de esquema, no de la lógica).
+   Frontend: `planificacion/[id]/page.tsx` (detalle de Ración anual,
+   Sesión 4) gana un bloque "Requerimiento anual (BOM)" con el mismo
+   patrón "verificar existencia antes de decidir qué mostrar" que
+   "Conformidad y pagos" en `compras/[id]/page.tsx` (Sesión 9): si ya
+   existe un requerimiento para esa ración (`GET /requerimientos-anuales?
+   racion_anual_id=X`, filtro que ya existía desde el Módulo 2) muestra un
+   link a su detalle; si no y el usuario puede editar, muestra
+   `<ConsolidarRequerimientoForm>` (nuevo, mismo estilo sin campos que
+   `GenerarInformeForm`/`AutorizarExcedenteForm`) que redirige al
+   requerimiento creado. Verificado de punta a punta en el navegador
+   contra una base SQLite descartable con el seed real: alimento → receta
+   VIGENTE → producto con `alimento_id` puente → ración anual → menú
+   quincenal → día → plato → dosificación calculada (18 unidades) →
+   consolidar (201, requerimiento BORRADOR con la línea correcta) →
+   `GET .../bom-consolidado` (`estado_suficiencia="ALERTA_CONTRATO"`, sin
+   contrato todavía) → repetir consolidación → 422 ("Ya existe...") →
+   detalle de la ración muestra el link en vez del botón tras refrescar.
+   Test nuevo en `test_planificacion.py::test_consolidar_requerimiento_
+   desde_bom` cubre además el caso `SUFICIENTE` (contrato+producto_
+   contratado con saldo suficiente, segunda ración anual consolidada) y el
+   422 de precondición (ración sin dosificación calculada). `pytest -q`
+   completo: 23/24 en verde (el único rojo sigue siendo el mismo flake
+   preexistente y ajeno de `test_reportes.py::test_reportes_completo`,
+   ya documentado en la Sesión 12). `npx tsc --noEmit` + `npx eslint .`
+   limpios sobre el repo completo.
 
 ## 11. Cómo correr el proyecto
 

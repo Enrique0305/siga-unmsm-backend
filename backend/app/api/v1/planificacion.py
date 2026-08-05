@@ -2,12 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import CurrentUser, get_current_user, require_roles
+from app.crud.bom_consolidado import servicio_bom_consolidado
 from app.crud.dosificacion import servicio_dosificacion
 from app.crud.planificacion import menu_dia_repo, menu_quincenal_repo, racion_anual_repo
 from app.db.session import get_db
 from app.models.planificacion import MenuDia
 from app.schemas.common import Page
-from app.schemas.dosificacion import DosificacionDetalleOut
+from app.schemas.dosificacion import BomConsolidadoOut, DosificacionDetalleOut
 from app.schemas.planificacion import (
     MenuDiaCreate,
     MenuDiaDetailOut,
@@ -21,6 +22,11 @@ from app.schemas.planificacion import (
     RacionAnualCreate,
     RacionAnualEstadoUpdate,
     RacionAnualOut,
+)
+from app.schemas.requerimiento import (
+    RequerimientoAnualDetailOut,
+    RequerimientoAnualDetalleOut,
+    RequerimientoAnualOut,
 )
 
 router = APIRouter(prefix="/planificacion", tags=["Planificación / Menús"])
@@ -82,6 +88,47 @@ async def cambiar_estado_racion_anual(
     await db.commit()
     await db.refresh(racion)
     return racion
+
+
+@router.post(
+    "/raciones-anuales/{racion_anual_id}/consolidar-requerimiento",
+    response_model=RequerimientoAnualDetailOut,
+    status_code=status.HTTP_201_CREATED,
+    summary="Consolida la dosificación (BOM) ya calculada de toda la ración anual en un Requerimiento Anual",
+)
+async def consolidar_requerimiento(
+    racion_anual_id: int,
+    db: AsyncSession = Depends(get_db),
+    _current: CurrentUser = Depends(require_roles(*ROLES_EDICION)),
+) -> RequerimientoAnualDetailOut:
+    try:
+        requerimiento = await servicio_bom_consolidado.generar_y_consolidar(db, racion_anual_id)
+        await db.commit()
+    except ValueError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+    base = RequerimientoAnualOut.model_validate(requerimiento)
+    return RequerimientoAnualDetailOut(
+        **base.model_dump(),
+        detalle=[RequerimientoAnualDetalleOut.from_model(d) for d in requerimiento.detalle],
+    )
+
+
+@router.get(
+    "/raciones-anuales/{racion_anual_id}/bom-consolidado",
+    response_model=list[BomConsolidadoOut],
+    summary="Desglose por almacén de la última consolidación BOM generada para esta ración anual",
+)
+async def obtener_bom_consolidado(
+    racion_anual_id: int,
+    db: AsyncSession = Depends(get_db),
+    _current: CurrentUser = Depends(get_current_user),
+) -> list[BomConsolidadoOut]:
+    try:
+        filas = await servicio_bom_consolidado.obtener_ultimo(db, racion_anual_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    return [BomConsolidadoOut.from_model(f) for f in filas]
 
 
 # ------------------------------------------------------------ menú quincenal
