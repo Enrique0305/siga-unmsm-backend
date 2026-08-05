@@ -5,7 +5,7 @@ comparativo consumo teórico (BOM, Módulo 1A) vs. comprado (Módulo 3) vs.
 recibido (Almacén) vs. despachado (Módulo 4), y alertas por almacén (stock
 bajo, próximos a vencer, observaciones sin resolver).
 """
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 from httpx import AsyncClient
@@ -128,8 +128,17 @@ async def test_reportes_completo(client: AsyncClient):
     assert nota_resp.status_code == 201, nota_resp.text
 
     # ---------------------------------------------------- comparativo consumo
-    fecha_inicio = date.today().replace(day=1)
-    fecha_fin = date.today()
+    # IngresoAlmacen.fecha_ingreso / NotaSalida.fecha_salida se fijan con
+    # server_default=func.now(), que en SQLite es siempre UTC — comparar
+    # contra date.today() (hora local) es la fragilidad ya documentada en
+    # CLAUDE.md: si el entorno corre justo alrededor de medianoche UTC, el
+    # día local y el día UTC difieren y la fila recién insertada queda
+    # fuera de la ventana. Se ancla la ventana a la fecha UTC actual, el
+    # mismo reloj que usa la base, para que la comparación sea consistente
+    # sin importar la zona horaria del host.
+    hoy_utc = datetime.now(timezone.utc).date()
+    fecha_inicio = hoy_utc.replace(day=1)
+    fecha_fin = hoy_utc
     comparativo_resp = await client.get(
         "/api/v1/reportes/comparativo-consumo",
         headers=headers,

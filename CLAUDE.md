@@ -1471,6 +1471,30 @@ MySQL corriendo para testear lógica de negocio.
    leídas" ya no la incluye. Backend sin cambios en esta sesión —
    `pytest -q` completo sigue en 36/36 (verificación de no-regresión, no
    se tocó ningún archivo `.py`).
+   ~~**Fix del flake de `test_reportes_completo`**~~ ✅ corregido. Mencionado
+   como "fragilidad ajena, preexistente" en 7 sesiones distintas desde la
+   Sesión 12, nunca se había diagnosticado la causa exacta. Confirmado
+   empíricamente (`SELECT datetime('now')` contra un engine SQLite en
+   memoria vs. `datetime.now()`/`datetime.now(timezone.utc)` en el mismo
+   proceso): `func.now()` en SQLite **siempre** devuelve UTC, sin importar
+   la zona horaria del host. `IngresoAlmacen.fecha_ingreso` y
+   `NotaSalida.fecha_salida` (`models/inventario.py`, `models/cocina.py`)
+   usan `server_default=func.now()` — pero
+   `crud/reportes.py::comparativo_consumo` compara esas columnas contra
+   `fecha_inicio`/`fecha_fin`, y `test_reportes.py::test_reportes_completo`
+   los calculaba con `date.today()` (hora **local** del proceso de test).
+   Cualquier corrida que cayera en la ventana en que el día local y el día
+   UTC difieren (todo el rango horario entre ambas medianoches, ancho según
+   el huso del host — confirmado de ~5h en este entorno) hacía que la fila
+   recién insertada quedara fuera de la ventana de fechas, dando
+   `cantidad_recibida`/`cantidad_despachada = 0` en vez de los valores
+   esperados. Es un desajuste de **test**, no un bug de producción (el
+   reporte en sí no tiene una política de zona horaria documentada que
+   violar). Fix acotado al test: `fecha_inicio`/`fecha_fin` ahora se
+   calculan con `datetime.now(timezone.utc).date()` — el mismo reloj que
+   usa `func.now()` — en vez de `date.today()`. No se tocó
+   `crud/reportes.py` ni ningún modelo. `pytest -q` completo: 36/36 en
+   verde.
 
 ## 11. Cómo correr el proyecto
 
