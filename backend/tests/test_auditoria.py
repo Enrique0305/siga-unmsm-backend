@@ -46,6 +46,9 @@ async def test_auditoria_automatica_crear_y_actualizar(client: AsyncClient):
     # sin una fila Usuario real sembrada (ver más abajo), usuario_nombre
     # cae al fallback en vez de romper con un AttributeError
     assert items_crear[0]["usuario_nombre"] == "Usuario #1"
+    # deuda técnica: detalle_json ya no es None, trae el snapshot completo
+    assert items_crear[0]["detalle_json"]["codigo"] == "P001"
+    assert items_crear[0]["detalle_json"]["nombre"] == "Arroz superior"
 
     actualizar_resp = await client.patch(
         f"/api/v1/productos/{producto_id}", headers=headers, json={"nombre": "Arroz superior premium"}
@@ -59,6 +62,12 @@ async def test_auditoria_automatica_crear_y_actualizar(client: AsyncClient):
     assert len(items_actualizar) == 2
     acciones = {item["accion"] for item in items_actualizar}
     assert acciones == {"CREAR", "ACTUALIZAR"}
+
+    item_actualizar = next(i for i in items_actualizar if i["accion"] == "ACTUALIZAR")
+    # solo la columna que cambió aparece en el diff — "codigo" no se tocó
+    assert item_actualizar["detalle_json"] == {
+        "nombre": {"antes": "Arroz superior", "despues": "Arroz superior premium"}
+    }
 
     # otra entidad no aparece en el filtro
     auditoria_otra_entidad = await client.get(
@@ -107,6 +116,28 @@ async def test_auditoria_usuario_nombre_real(client: AsyncClient):
     item = auditoria_resp.json()["items"][0]
     assert item["usuario_id"] == usuario_id
     assert item["usuario_nombre"] == "Ana Torres"
+
+    # deuda técnica: password_hash nunca debe aparecer en auditoria_log, ni
+    # siquiera como hash. La fila Usuario se sembró con una sesión cruda
+    # (sin ContextVar de actor, no genera auditoría — ver core/audit.py),
+    # así que se dispara una actualización real vía API para tener una
+    # fila ACTUALIZAR de "usuario" que sí pase por el evento.
+    patch_resp = await client.patch(
+        f"/api/v1/usuarios/{usuario_id}", headers=headers, json={"estado": "INACTIVO"}
+    )
+    assert patch_resp.status_code == 200, patch_resp.text
+
+    auditoria_usuario = await client.get(
+        "/api/v1/auditoria", headers=headers, params={"entidad": "usuario", "entidad_id": usuario_id}
+    )
+    assert auditoria_usuario.status_code == 200, auditoria_usuario.text
+    items_usuario = auditoria_usuario.json()["items"]
+    assert len(items_usuario) == 1
+    assert items_usuario[0]["accion"] == "ACTUALIZAR"
+    assert "password_hash" not in items_usuario[0]["detalle_json"]
+    assert items_usuario[0]["detalle_json"] == {
+        "estado": {"antes": "ACTIVO", "despues": "INACTIVO"}
+    }
 
 
 @pytest.mark.asyncio
