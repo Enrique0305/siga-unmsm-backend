@@ -15,5 +15,6 @@ export interface UsuarioOut {
   estado: string;
   creado_en: string;
   rol: RolOut;
+  proveedor_id?: number | null;
   almacen_ids?: number[];
 }

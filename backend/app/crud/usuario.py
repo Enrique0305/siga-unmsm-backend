@@ -26,6 +26,7 @@ class CRUDUsuario(CRUDBase[Usuario]):
             password_hash=hash_password(data.password),
             rol_id=data.rol_id,
             sede_id=data.sede_id,
+            proveedor_id=data.proveedor_id,
         )
         db.add(usuario)
         await db.flush()  # asigna usuario_id

@@ -79,19 +79,29 @@ def _headers_admin():
     return {"Authorization": f"Bearer {token}"}
 
 
-def _headers_rol(rol: str, almacenes: list[int]) -> dict:
-    token = create_access_token(usuario_id=2, rol=rol, almacenes=almacenes, acceso_todos_almacenes=False)
+def _headers_rol(rol: str, almacenes: list[int], proveedor_id: int | None = None) -> dict:
+    token = create_access_token(
+        usuario_id=2, rol=rol, almacenes=almacenes, acceso_todos_almacenes=False, proveedor_id=proveedor_id
+    )
     return {"Authorization": f"Bearer {token}"}
 
 
-async def _preparar_contrato_con_producto(client: AsyncClient, headers: dict) -> dict:
+async def _preparar_contrato_con_producto(
+    client: AsyncClient,
+    headers: dict,
+    producto_codigo: str = "P001",
+    proveedor_ruc: str = "20123456789",
+    proveedor_razon_social: str = "Proveedor Test SAC",
+    numero_contrato: str = "CTR-2026-001",
+) -> dict:
     """Replica el flujo de Módulo 2 hasta tener un producto_contratado con
     saldo (cantidad_contratada=100, precio_unitario=5.5 -> saldo_fisico=100,
-    saldo_monetario=550)."""
+    saldo_monetario=550). Los overrides opcionales permiten llamarla más de
+    una vez en el mismo test (Sesión 12: dos proveedores independientes)."""
     producto_resp = await client.post(
         "/api/v1/productos",
         headers=headers,
-        json={"codigo": "P001", "nombre": "Arroz superior", "categoria": "Abarrotes", "unidad_id": 1},
+        json={"codigo": producto_codigo, "nombre": "Arroz superior", "categoria": "Abarrotes", "unidad_id": 1},
     )
     producto_id = producto_resp.json()["producto_id"]
 
@@ -120,7 +130,9 @@ async def _preparar_contrato_con_producto(client: AsyncClient, headers: dict) ->
         )
 
     proveedor_resp = await client.post(
-        "/api/v1/proveedores", headers=headers, json={"ruc": "20123456789", "razon_social": "Proveedor Test SAC"}
+        "/api/v1/proveedores",
+        headers=headers,
+        json={"ruc": proveedor_ruc, "razon_social": proveedor_razon_social},
     )
     proveedor_id = proveedor_resp.json()["proveedor_id"]
 
@@ -130,7 +142,7 @@ async def _preparar_contrato_con_producto(client: AsyncClient, headers: dict) ->
         "/api/v1/contratos",
         headers=headers,
         json={
-            "numero_contrato": "CTR-2026-001",
+            "numero_contrato": numero_contrato,
             "proveedor_id": proveedor_id,
             "requerimiento_anual_id": requerimiento_anual_id,
             "fecha_inicio": fecha_inicio.isoformat(),
@@ -506,8 +518,10 @@ async def test_rn20_alcance_por_almacen(client: AsyncClient):
     assert estado_ok.status_code == 200, estado_ok.text
 
     # 4) guía de remisión: PROVEEDOR sin acceso al almacén destino -> 403
-    headers_proveedor_sin_acceso = _headers_rol("PROVEEDOR", almacenes=[1])
-    headers_proveedor_con_acceso = _headers_rol("PROVEEDOR", almacenes=[2])
+    # proveedor_id igual en ambos tokens: aísla el chequeo a la dimensión
+    # de almacén (RN-20), el de proveedor (Sesión 12) se prueba aparte.
+    headers_proveedor_sin_acceso = _headers_rol("PROVEEDOR", almacenes=[1], proveedor_id=ctx["proveedor_id"])
+    headers_proveedor_con_acceso = _headers_rol("PROVEEDOR", almacenes=[2], proveedor_id=ctx["proveedor_id"])
 
     guia_bloqueada = await client.post(
         "/api/v1/guias-remision",
@@ -591,3 +605,130 @@ async def test_rn20_alcance_por_almacen(client: AsyncClient):
         json={"orden_compra_detalle_id": orden_compra_detalle_2_id, "cantidad_entregada": 1},
     )
     assert detalle_ok.status_code == 201, detalle_ok.text
+
+
+@pytest.mark.asyncio
+async def test_rn_alcance_proveedor(client: AsyncClient):
+    """Sesión 12: un usuario con rol PROVEEDOR solo ve/toca las OCs y
+    guías de su propio proveedor_id, y no puede impersonar a otro
+    proveedor al crear una guía."""
+    headers = _headers_admin()
+    ctx_a = await _preparar_contrato_con_producto(
+        client,
+        headers,
+        producto_codigo="P-PROV-A",
+        proveedor_ruc="20111111111",
+        proveedor_razon_social="Proveedor A",
+        numero_contrato="CTR-PROV-A",
+    )
+    ctx_b = await _preparar_contrato_con_producto(
+        client,
+        headers,
+        producto_codigo="P-PROV-B",
+        proveedor_ruc="20222222222",
+        proveedor_razon_social="Proveedor B",
+        numero_contrato="CTR-PROV-B",
+    )
+
+    async def _crear_oc_pedido_guia(ctx: dict, numero_oc: str, numero_guia: str) -> dict:
+        oc_resp = await client.post(
+            "/api/v1/ordenes-compra",
+            headers=headers,
+            json={
+                "numero_oc": numero_oc,
+                "contrato_id": ctx["contrato_id"],
+                "periodo_mes": date.today().replace(day=1).isoformat(),
+                "detalle": [
+                    {
+                        "producto_contratado_id": ctx["producto_contratado_id"],
+                        "cantidad_solicitada": 10,
+                        "distribucion": [{"almacen_id": 1, "cantidad_distribuida": 10}],
+                    }
+                ],
+            },
+        )
+        assert oc_resp.status_code == 201, oc_resp.text
+        oc = oc_resp.json()
+        orden_compra_detalle_id = oc["detalle"][0]["orden_compra_detalle_id"]
+
+        pedido_resp = await client.post(
+            "/api/v1/pedidos-semanales",
+            headers=headers,
+            json={
+                "orden_compra_id": oc["orden_compra_id"],
+                "menu_id": ctx["menu_id"],
+                "almacen_id": 1,
+                "semana_inicio": date.today().isoformat(),
+                "semana_fin": (date.today() + timedelta(days=6)).isoformat(),
+            },
+        )
+        assert pedido_resp.status_code == 201, pedido_resp.text
+
+        guia_resp = await client.post(
+            "/api/v1/guias-remision",
+            headers=headers,
+            json={
+                "numero_guia": numero_guia,
+                "proveedor_id": ctx["proveedor_id"],
+                "orden_compra_id": oc["orden_compra_id"],
+                "pedido_semanal_id": pedido_resp.json()["pedido_semanal_id"],
+                "almacen_destino_id": 1,
+                "fecha_entrega": date.today().isoformat(),
+                "detalle": [{"orden_compra_detalle_id": orden_compra_detalle_id, "cantidad_entregada": 5}],
+            },
+        )
+        assert guia_resp.status_code == 201, guia_resp.text
+
+        return {
+            "orden_compra_id": oc["orden_compra_id"],
+            "orden_compra_detalle_id": orden_compra_detalle_id,
+            "guia_remision_id": guia_resp.json()["guia_remision_id"],
+        }
+
+    docs_a = await _crear_oc_pedido_guia(ctx_a, "OC-PROV-A-001", "GR-PROV-A-001")
+    docs_b = await _crear_oc_pedido_guia(ctx_b, "OC-PROV-B-001", "GR-PROV-B-001")
+
+    headers_proveedor_a = _headers_rol("PROVEEDOR", almacenes=[1], proveedor_id=ctx_a["proveedor_id"])
+
+    # OC: lista filtrada, detalle ajeno bloqueado
+    lista_oc = await client.get("/api/v1/ordenes-compra", headers=headers_proveedor_a)
+    assert lista_oc.status_code == 200, lista_oc.text
+    assert {o["numero_oc"] for o in lista_oc.json()["items"]} == {"OC-PROV-A-001"}
+
+    detalle_oc_ajena = await client.get(f"/api/v1/ordenes-compra/{docs_b['orden_compra_id']}", headers=headers_proveedor_a)
+    assert detalle_oc_ajena.status_code == 403
+
+    detalle_oc_propia = await client.get(f"/api/v1/ordenes-compra/{docs_a['orden_compra_id']}", headers=headers_proveedor_a)
+    assert detalle_oc_propia.status_code == 200, detalle_oc_propia.text
+
+    # Guía: lista filtrada, detalle ajeno bloqueado
+    lista_guia = await client.get("/api/v1/guias-remision", headers=headers_proveedor_a)
+    assert lista_guia.status_code == 200, lista_guia.text
+    assert {g["numero_guia"] for g in lista_guia.json()["items"]} == {"GR-PROV-A-001"}
+
+    detalle_guia_ajena = await client.get(f"/api/v1/guias-remision/{docs_b['guia_remision_id']}", headers=headers_proveedor_a)
+    assert detalle_guia_ajena.status_code == 403
+
+    # Impersonación: proveedor A intenta crear una guía con el proveedor_id de B -> 403
+    guia_impersonada = await client.post(
+        "/api/v1/guias-remision",
+        headers=headers_proveedor_a,
+        json={
+            "numero_guia": "GR-IMPERSONACION",
+            "proveedor_id": ctx_b["proveedor_id"],
+            "orden_compra_id": docs_b["orden_compra_id"],
+            "pedido_semanal_id": 1,
+            "almacen_destino_id": 1,
+            "fecha_entrega": date.today().isoformat(),
+            "detalle": [{"orden_compra_detalle_id": docs_b["orden_compra_detalle_id"], "cantidad_entregada": 1}],
+        },
+    )
+    assert guia_impersonada.status_code == 403
+
+    # Agregar línea a una guía ajena -> 403
+    detalle_bloqueado = await client.post(
+        f"/api/v1/guias-remision/{docs_b['guia_remision_id']}/detalle",
+        headers=headers_proveedor_a,
+        json={"orden_compra_detalle_id": docs_b["orden_compra_detalle_id"], "cantidad_entregada": 1},
+    )
+    assert detalle_bloqueado.status_code == 403

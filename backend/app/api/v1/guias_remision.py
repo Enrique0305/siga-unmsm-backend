@@ -2,7 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import CurrentUser, get_current_user, require_roles, verificar_acceso_almacen
+from app.api.deps import (
+    CurrentUser,
+    get_current_user,
+    require_roles,
+    verificar_acceso_almacen,
+    verificar_acceso_proveedor,
+)
 from app.crud.guia_remision import guia_remision_repo
 from app.db.session import get_db
 from app.models.compras import GuiaRemision
@@ -39,8 +45,10 @@ async def listar_guias_remision(
     proveedor_id: int | None = None,
     estado: str | None = None,
     db: AsyncSession = Depends(get_db),
-    _current: CurrentUser = Depends(get_current_user),
+    current: CurrentUser = Depends(get_current_user),
 ) -> Page[GuiaRemisionListOut]:
+    if current.rol == "PROVEEDOR":
+        proveedor_id = current.proveedor_id
     items, total = await guia_remision_repo.list_filtrado(
         db,
         page=page,
@@ -58,11 +66,12 @@ async def listar_guias_remision(
 async def obtener_guia_remision(
     guia_remision_id: int,
     db: AsyncSession = Depends(get_db),
-    _current: CurrentUser = Depends(get_current_user),
+    current: CurrentUser = Depends(get_current_user),
 ) -> GuiaRemisionDetailOut:
     guia = await guia_remision_repo.get_con_detalle(db, guia_remision_id)
     if guia is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Guía de remisión no encontrada")
+    verificar_acceso_proveedor(current, guia.proveedor_id)
     return _build_detail(guia)
 
 
@@ -76,6 +85,7 @@ async def crear_guia_remision(
     excede el saldo pendiente de la línea de OC) · RN-13 (almacén destino
     obligatorio, ya forzado por el esquema)."""
     verificar_acceso_almacen(current, data.almacen_destino_id)
+    verificar_acceso_proveedor(current, data.proveedor_id)
     try:
         guia = await guia_remision_repo.crear(db, data)
         await db.commit()
@@ -104,6 +114,7 @@ async def agregar_detalle_guia(
     guia = await db.get(GuiaRemision, guia_remision_id)
     if guia is not None:
         verificar_acceso_almacen(current, guia.almacen_destino_id)
+        verificar_acceso_proveedor(current, guia.proveedor_id)
 
     try:
         detalle = await guia_remision_repo.agregar_detalle(db, guia_remision_id, data)

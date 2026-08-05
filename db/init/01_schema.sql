@@ -60,8 +60,10 @@ CREATE TABLE usuario (
     password_hash       VARCHAR(255) NOT NULL, -- [BACKEND] hash bcrypt, nunca texto plano
     rol_id              INT NOT NULL,
     sede_id             INT,
+    proveedor_id        INT, -- solo para usuarios con rol PROVEEDOR (alcance RN-20-like)
     estado              VARCHAR(20) NOT NULL DEFAULT 'ACTIVO',
-    creado_en           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    creado_en           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_usuario_proveedor_id FOREIGN KEY (proveedor_id) REFERENCES proveedor(proveedor_id)
 );
 
 CREATE TABLE rol (

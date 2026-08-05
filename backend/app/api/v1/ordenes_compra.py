@@ -4,7 +4,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import CurrentUser, get_current_user, require_roles, verificar_acceso_almacen
+from app.api.deps import CurrentUser, get_current_user, require_roles, verificar_acceso_almacen, verificar_acceso_proveedor
 from app.crud.informe_conformidad import informe_conformidad_repo
 from app.crud.orden_compra import orden_compra_repo
 from app.db.session import get_db
@@ -33,10 +33,17 @@ async def listar_ordenes_compra(
     estado: str | None = None,
     buscar: str | None = None,
     db: AsyncSession = Depends(get_db),
-    _current: CurrentUser = Depends(get_current_user),
+    current: CurrentUser = Depends(get_current_user),
 ) -> Page[OrdenCompraOut]:
+    proveedor_filtro = current.proveedor_id if current.rol == "PROVEEDOR" else None
     items, total = await orden_compra_repo.list_filtrado(
-        db, page=page, page_size=page_size, contrato_id=contrato_id, estado=estado, buscar=buscar
+        db,
+        page=page,
+        page_size=page_size,
+        contrato_id=contrato_id,
+        proveedor_id=proveedor_filtro,
+        estado=estado,
+        buscar=buscar,
     )
     return Page(items=items, total=total, page=page, page_size=page_size)
 
@@ -45,11 +52,12 @@ async def listar_ordenes_compra(
 async def obtener_orden_compra(
     orden_compra_id: int,
     db: AsyncSession = Depends(get_db),
-    _current: CurrentUser = Depends(get_current_user),
+    current: CurrentUser = Depends(get_current_user),
 ) -> OrdenCompraDetailOut:
     oc = await orden_compra_repo.get_con_detalle(db, orden_compra_id)
     if oc is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Orden de compra no encontrada")
+    verificar_acceso_proveedor(current, oc.contrato.proveedor_id)
     return OrdenCompraDetailOut.from_model(oc)
 
 

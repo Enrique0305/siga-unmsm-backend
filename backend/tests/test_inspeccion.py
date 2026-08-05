@@ -316,8 +316,10 @@ async def test_rn20_alcance_por_almacen(client: AsyncClient):
     acta_id = acta_resp.json()["acta_observacion_id"]
 
     # 3) subsanación (rol PROVEEDOR) sin acceso -> 403
-    headers_proveedor_sin_acceso = _headers_rol("PROVEEDOR", almacenes=[2])
-    headers_proveedor_con_acceso = _headers_rol("PROVEEDOR", almacenes=[1])
+    # proveedor_id igual en ambos tokens: aísla el chequeo a la dimensión
+    # de almacén (RN-20), el de proveedor (Sesión 12) se prueba aparte.
+    headers_proveedor_sin_acceso = _headers_rol("PROVEEDOR", almacenes=[2], proveedor_id=ctx["proveedor_id"])
+    headers_proveedor_con_acceso = _headers_rol("PROVEEDOR", almacenes=[1], proveedor_id=ctx["proveedor_id"])
 
     subsanacion_bloqueada = await client.post(
         f"/api/v1/actas-observacion/{acta_id}/subsanaciones",
@@ -348,3 +350,71 @@ async def test_rn20_alcance_por_almacen(client: AsyncClient):
         json={"resultado_reinspeccion": "CONFORME"},
     )
     assert reinspeccion_ok.status_code == 200, reinspeccion_ok.text
+
+
+@pytest.mark.asyncio
+async def test_rn_alcance_proveedor_subsanacion(client: AsyncClient):
+    """Sesión 12: solo el proveedor dueño de la guía observada puede
+    presentar una subsanación sobre su propia acta — otro proveedor
+    autenticado no puede, aunque conozca el id del acta."""
+    headers = _headers_admin()
+    ctx_a = await _preparar_contrato_con_producto(
+        client,
+        headers,
+        producto_codigo="P-PROV-INSP-A",
+        proveedor_ruc="20111111111",
+        proveedor_razon_social="Proveedor Inspección A",
+        numero_contrato="CTR-PROV-INSP-A",
+    )
+    guia_ctx = await _crear_guia_completa(client, headers, ctx_a, "OC-PROV-INSP-A", "GR-PROV-INSP-A", cantidad=40)
+
+    inspeccion_resp = await client.post(
+        "/api/v1/inspecciones",
+        headers=headers,
+        json={
+            "guia_remision_id": guia_ctx["guia_remision_id"],
+            "detalle": [
+                {
+                    "guia_remision_detalle_id": guia_ctx["guia_remision_detalle_id"],
+                    "cantidad_conforme": 30,
+                    "cantidad_observada": 10,
+                }
+            ],
+        },
+    )
+    assert inspeccion_resp.status_code == 201, inspeccion_resp.text
+    inspeccion_detalle_id = inspeccion_resp.json()["detalle"][0]["inspeccion_detalle_id"]
+
+    acta_resp = await client.post(
+        f"/api/v1/actas-observacion/desde-inspeccion-detalle/{inspeccion_detalle_id}",
+        headers=headers,
+        json={
+            "numero_acta": "ACTA-PROV-INSP-1",
+            "motivo": "test",
+            "plazo_subsanacion": (date.today() + timedelta(days=5)).isoformat(),
+        },
+    )
+    assert acta_resp.status_code == 201, acta_resp.text
+    acta_id = acta_resp.json()["acta_observacion_id"]
+
+    proveedor_b_resp = await client.post(
+        "/api/v1/proveedores", headers=headers, json={"ruc": "20222222222", "razon_social": "Proveedor Inspección B"}
+    )
+    proveedor_b_id = proveedor_b_resp.json()["proveedor_id"]
+
+    headers_proveedor_ajeno = _headers_rol("PROVEEDOR", almacenes=[1], proveedor_id=proveedor_b_id)
+    headers_proveedor_propio = _headers_rol("PROVEEDOR", almacenes=[1], proveedor_id=ctx_a["proveedor_id"])
+
+    subsanacion_bloqueada = await client.post(
+        f"/api/v1/actas-observacion/{acta_id}/subsanaciones",
+        headers=headers_proveedor_ajeno,
+        json={"fecha_presentacion": date.today().isoformat(), "descripcion": "test"},
+    )
+    assert subsanacion_bloqueada.status_code == 403
+
+    subsanacion_ok = await client.post(
+        f"/api/v1/actas-observacion/{acta_id}/subsanaciones",
+        headers=headers_proveedor_propio,
+        json={"fecha_presentacion": date.today().isoformat(), "descripcion": "test"},
+    )
+    assert subsanacion_ok.status_code == 201, subsanacion_ok.text

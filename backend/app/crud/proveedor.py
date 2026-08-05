@@ -13,8 +13,11 @@ class CRUDProveedor(CRUDBase[Proveedor]):
         page_size: int = 20,
         estado: str | None = "ACTIVO",
         buscar: str | None = None,
+        proveedor_id: int | None = None,
     ) -> tuple[list[Proveedor], int]:
         stmt = select(Proveedor)
+        if proveedor_id is not None:
+            stmt = stmt.where(Proveedor.proveedor_id == proveedor_id)
         if estado is not None:
             stmt = stmt.where(Proveedor.estado == estado)
         if buscar:

@@ -70,6 +70,13 @@ def _headers_admin():
     return {"Authorization": f"Bearer {token}"}
 
 
+def _headers_proveedor(proveedor_id: int) -> dict:
+    token = create_access_token(
+        usuario_id=2, rol="PROVEEDOR", almacenes=[], acceso_todos_almacenes=False, proveedor_id=proveedor_id
+    )
+    return {"Authorization": f"Bearer {token}"}
+
+
 @pytest.mark.asyncio
 async def test_flujo_contrato_completo(client: AsyncClient):
     headers = _headers_admin()
@@ -229,3 +236,107 @@ async def test_flujo_contrato_completo(client: AsyncClient):
         f"/api/v1/contratos/{contrato_id}/estado", headers=headers, json={"estado": "VIGENTE"}
     )
     assert reabrir.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_rn_alcance_proveedor(client: AsyncClient):
+    """Sesión 12: un usuario con rol PROVEEDOR solo ve sus propios
+    contratos, aunque no mande proveedor_id en la query, y no puede leer
+    el detalle del contrato de otro proveedor."""
+    headers = _headers_admin()
+
+    producto_resp = await client.post(
+        "/api/v1/productos",
+        headers=headers,
+        json={"codigo": "P001", "nombre": "Arroz superior", "categoria": "Abarrotes", "unidad_id": 1},
+    )
+    producto_id = producto_resp.json()["producto_id"]
+
+    racion_resp = await client.post(
+        "/api/v1/planificacion/raciones-anuales",
+        headers=headers,
+        json={"sede_id": 1, "centro_consumo_id": 1, "anio": 2026, "poblacion_atendida": 100, "raciones_dia": 100},
+    )
+    racion_anual_id = racion_resp.json()["racion_anual_id"]
+
+    req_resp = await client.post(
+        "/api/v1/requerimientos-anuales",
+        headers=headers,
+        json={
+            "racion_anual_id": racion_anual_id,
+            "presupuesto_referencial_total": 5000,
+            "detalle": [
+                {"producto_id": producto_id, "cantidad_estimada_anual": 1000, "unidad_id": 1, "presupuesto_referencial": 5000}
+            ],
+        },
+    )
+    requerimiento_anual_id = req_resp.json()["requerimiento_anual_id"]
+    for estado in ("EN_REVISION", "APROBADO"):
+        await client.patch(
+            f"/api/v1/requerimientos-anuales/{requerimiento_anual_id}/estado", headers=headers, json={"estado": estado}
+        )
+
+    fecha_inicio = date.today()
+    fecha_fin = date.today() + timedelta(days=200)
+
+    proveedor_a = await client.post(
+        "/api/v1/proveedores", headers=headers, json={"ruc": "20111111111", "razon_social": "Proveedor A"}
+    )
+    proveedor_a_id = proveedor_a.json()["proveedor_id"]
+    proveedor_b = await client.post(
+        "/api/v1/proveedores", headers=headers, json={"ruc": "20222222222", "razon_social": "Proveedor B"}
+    )
+    proveedor_b_id = proveedor_b.json()["proveedor_id"]
+
+    contrato_a = await client.post(
+        "/api/v1/contratos",
+        headers=headers,
+        json={
+            "numero_contrato": "CTR-A-001",
+            "proveedor_id": proveedor_a_id,
+            "requerimiento_anual_id": requerimiento_anual_id,
+            "fecha_inicio": fecha_inicio.isoformat(),
+            "fecha_fin": fecha_fin.isoformat(),
+            "presupuesto_total": 5000,
+        },
+    )
+    assert contrato_a.status_code == 201, contrato_a.text
+    contrato_a_id = contrato_a.json()["contrato_id"]
+
+    contrato_b = await client.post(
+        "/api/v1/contratos",
+        headers=headers,
+        json={
+            "numero_contrato": "CTR-B-001",
+            "proveedor_id": proveedor_b_id,
+            "requerimiento_anual_id": requerimiento_anual_id,
+            "fecha_inicio": fecha_inicio.isoformat(),
+            "fecha_fin": fecha_fin.isoformat(),
+            "presupuesto_total": 5000,
+        },
+    )
+    assert contrato_b.status_code == 201, contrato_b.text
+    contrato_b_id = contrato_b.json()["contrato_id"]
+
+    headers_proveedor_a = _headers_proveedor(proveedor_a_id)
+
+    # lista: proveedor A solo ve su propio contrato, aunque no filtre por query
+    lista = await client.get("/api/v1/contratos", headers=headers_proveedor_a)
+    assert lista.status_code == 200, lista.text
+    numeros = {c["numero_contrato"] for c in lista.json()["items"]}
+    assert numeros == {"CTR-A-001"}
+
+    # intentar forzar el filtro a otro proveedor por query no cambia nada
+    lista_forzada = await client.get(
+        f"/api/v1/contratos?proveedor_id={proveedor_b_id}", headers=headers_proveedor_a
+    )
+    assert lista_forzada.status_code == 200, lista_forzada.text
+    assert {c["numero_contrato"] for c in lista_forzada.json()["items"]} == {"CTR-A-001"}
+
+    # detalle: proveedor A puede ver su propio contrato...
+    detalle_propio = await client.get(f"/api/v1/contratos/{contrato_a_id}", headers=headers_proveedor_a)
+    assert detalle_propio.status_code == 200, detalle_propio.text
+
+    # ...pero no el de otro proveedor
+    detalle_ajeno = await client.get(f"/api/v1/contratos/{contrato_b_id}", headers=headers_proveedor_a)
+    assert detalle_ajeno.status_code == 403

@@ -26,12 +26,15 @@ async def client():
 
     TestSession = async_sessionmaker(bind=engine, expire_on_commit=False)
 
+    from app.models.contratos import Proveedor
     from app.models.organizacion import Almacen, Rol, Sede
 
     async with TestSession() as seed_session:
         seed_session.add(Rol(rol_id=1, nombre="ADMIN", acceso_todos_almacenes=True))
         seed_session.add(Rol(rol_id=2, nombre="NUTRICION", acceso_todos_almacenes=False))
+        seed_session.add(Rol(rol_id=3, nombre="PROVEEDOR", acceso_todos_almacenes=False))
         seed_session.add(Sede(sede_id=1, nombre="Sede Test"))
+        seed_session.add(Proveedor(proveedor_id=1, ruc="20123456789", razon_social="Proveedor Test SAC"))
         await seed_session.flush()
         seed_session.add(
             Almacen(
@@ -74,7 +77,7 @@ async def test_catalogo_roles(client: AsyncClient):
     resp = await client.get("/api/v1/catalogos/roles", headers=_headers_admin())
     assert resp.status_code == 200, resp.text
     nombres = {r["nombre"] for r in resp.json()}
-    assert nombres == {"ADMIN", "NUTRICION"}
+    assert nombres == {"ADMIN", "NUTRICION", "PROVEEDOR"}
 
 
 @pytest.mark.asyncio
@@ -133,3 +136,37 @@ async def test_patch_usuario_requiere_admin(client: AsyncClient):
         json={"estado": "INACTIVO"},
     )
     assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_crear_usuario_proveedor_con_proveedor_id(client: AsyncClient):
+    """Sesión 12: Usuario.proveedor_id acota qué documentos puede ver un
+    usuario con rol PROVEEDOR — confirma que el campo se guarda y se
+    refleja en UsuarioOut, y que se puede actualizar vía PATCH."""
+    admin_headers = _headers_admin()
+
+    crear = await client.post(
+        "/api/v1/usuarios",
+        headers=admin_headers,
+        json={
+            "nombres": "Beto",
+            "apellidos": "Proveedor",
+            "correo": "beto.proveedor@unmsm.edu.pe",
+            "password": "ClaveSegura123",
+            "rol_id": 3,
+            "proveedor_id": 1,
+        },
+    )
+    assert crear.status_code == 201, crear.text
+    usuario = crear.json()
+    assert usuario["rol"]["nombre"] == "PROVEEDOR"
+    assert usuario["proveedor_id"] == 1
+    usuario_id = usuario["usuario_id"]
+
+    patch = await client.patch(
+        f"/api/v1/usuarios/{usuario_id}",
+        headers=admin_headers,
+        json={"proveedor_id": None},
+    )
+    assert patch.status_code == 200, patch.text
+    assert patch.json()["proveedor_id"] is None

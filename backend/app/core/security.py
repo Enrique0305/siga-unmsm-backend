@@ -25,11 +25,19 @@ def _create_token(subject: str, expires_delta: timedelta, extra_claims: dict[str
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
-def create_access_token(usuario_id: int, rol: str, almacenes: list[int], acceso_todos_almacenes: bool) -> str:
+def create_access_token(
+    usuario_id: int,
+    rol: str,
+    almacenes: list[int],
+    acceso_todos_almacenes: bool,
+    proveedor_id: int | None = None,
+) -> str:
     """
     El token lleva el rol y los almacenes autorizados en el payload
     (claims), así el backend no necesita consultar usuario_almacen_acceso
     en cada request para validar el alcance por almacén (RN-20).
+    `proveedor_id` cumple el mismo rol para el alcance de un usuario con
+    rol PROVEEDOR (Sesión 12) — None para cualquier otro rol.
     """
     return _create_token(
         subject=str(usuario_id),
@@ -39,6 +47,7 @@ def create_access_token(usuario_id: int, rol: str, almacenes: list[int], acceso_
             "rol": rol,
             "almacenes": almacenes,
             "acceso_todos_almacenes": acceso_todos_almacenes,
+            "proveedor_id": proveedor_id,
         },
     )
 

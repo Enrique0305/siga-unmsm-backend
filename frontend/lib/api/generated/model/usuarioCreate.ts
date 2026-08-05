@@ -25,6 +25,8 @@ export interface UsuarioCreate {
   password: string;
   rol_id: number;
   sede_id?: number | null;
+  /** Solo para usuarios con rol PROVEEDOR — acota qué contratos/OCs/guías puede ver (Sesión 12). */
+  proveedor_id?: number | null;
   /** Almacenes autorizados (RN-20). Ignorado si el rol tiene acceso_todos_almacenes. */
   almacen_ids?: number[];
 }

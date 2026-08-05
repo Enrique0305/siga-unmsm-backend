@@ -40,10 +40,15 @@ class CRUDOrdenCompra(CRUDBase[OrdenCompra]):
         page: int = 1,
         page_size: int = 20,
         contrato_id: int | None = None,
+        proveedor_id: int | None = None,
         estado: str | None = None,
         buscar: str | None = None,
     ) -> tuple[list[OrdenCompra], int]:
         stmt = select(OrdenCompra)
+        if proveedor_id is not None:
+            stmt = stmt.join(Contrato, OrdenCompra.contrato_id == Contrato.contrato_id).where(
+                Contrato.proveedor_id == proveedor_id
+            )
         if contrato_id is not None:
             stmt = stmt.where(OrdenCompra.contrato_id == contrato_id)
         if estado is not None:

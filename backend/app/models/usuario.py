@@ -17,6 +17,7 @@ class Usuario(Base):
     password_hash: Mapped[str] = mapped_column(String(255))
     rol_id: Mapped[int] = mapped_column(ForeignKey("rol.rol_id"))
     sede_id: Mapped[int | None] = mapped_column(ForeignKey("sede.sede_id"))
+    proveedor_id: Mapped[int | None] = mapped_column(ForeignKey("proveedor.proveedor_id"))
     estado: Mapped[str] = mapped_column(String(20), default="ACTIVO")
     creado_en: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 

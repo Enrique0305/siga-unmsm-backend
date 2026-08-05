@@ -22,9 +22,16 @@ class CurrentUser:
     rol: str
     almacenes: list[int]
     acceso_todos_almacenes: bool
+    proveedor_id: int | None = None
 
     def tiene_acceso_almacen(self, almacen_id: int) -> bool:
         return self.acceso_todos_almacenes or almacen_id in self.almacenes
+
+    def tiene_acceso_proveedor(self, proveedor_id: int) -> bool:
+        """A diferencia de tiene_acceso_almacen, esto no restringe a nadie
+        salvo al propio rol PROVEEDOR — ADMIN/LOGISTICA_CENTRAL siempre
+        pasan (Sesión 12, alcance de PROVEEDOR)."""
+        return self.rol != "PROVEEDOR" or self.proveedor_id == proveedor_id
 
 
 async def get_current_user(token: str = Depends(oauth2_scheme)) -> CurrentUser:
@@ -40,6 +47,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> CurrentUser:
         rol=payload["rol"],
         almacenes=payload.get("almacenes", []),
         acceso_todos_almacenes=payload.get("acceso_todos_almacenes", False),
+        proveedor_id=payload.get("proveedor_id"),
     )
 
 
@@ -91,6 +99,17 @@ def verificar_acceso_almacen(current: CurrentUser, almacen_id: int) -> None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No tienes autorización para operar sobre este almacén (RN-20)",
+        )
+
+
+def verificar_acceso_proveedor(current: CurrentUser, proveedor_id: int) -> None:
+    """Sesión 12: un usuario con rol PROVEEDOR solo puede leer/escribir
+    documentos (contrato, OC, guía) de su propio proveedor_id — cualquier
+    otro rol pasa siempre."""
+    if not current.tiene_acceso_proveedor(proveedor_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes autorización para operar sobre los documentos de este proveedor",
         )
 
 

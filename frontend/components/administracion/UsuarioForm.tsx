@@ -9,6 +9,7 @@ import {
   useCrearUsuarioApiV1UsuariosPost,
 } from "@/lib/api/generated/endpoints/usuarios/usuarios";
 import type { AlmacenOut } from "@/lib/api/generated/model/almacenOut";
+import type { ProveedorOut } from "@/lib/api/generated/model/proveedorOut";
 import type { RolOut } from "@/lib/api/generated/model/rolOut";
 import type { SedeOut } from "@/lib/api/generated/model/sedeOut";
 import type { UsuarioOut } from "@/lib/api/generated/model/usuarioOut";
@@ -19,12 +20,14 @@ export function UsuarioForm({
   roles,
   sedes,
   almacenes,
+  proveedores,
 }: {
   mode: "create" | "edit";
   usuario?: UsuarioOut;
   roles: RolOut[];
   sedes: SedeOut[];
   almacenes: AlmacenOut[];
+  proveedores: ProveedorOut[];
 }) {
   const router = useRouter();
   const crear = useCrearUsuarioApiV1UsuariosPost();
@@ -38,6 +41,7 @@ export function UsuarioForm({
     usuario?.rol.rol_id ?? roles[0]?.rol_id ?? "",
   );
   const [sedeId, setSedeId] = useState<number | string>("");
+  const [proveedorId, setProveedorId] = useState<number | string>(usuario?.proveedor_id ?? "");
   const [almacenIds, setAlmacenIds] = useState<number[]>(usuario?.almacen_ids ?? []);
   const [estado, setEstado] = useState(usuario?.estado ?? "ACTIVO");
   const [error, setError] = useState<string | null>(null);
@@ -69,6 +73,7 @@ export function UsuarioForm({
           password,
           rol_id: Number(rolId),
           sede_id: sedeId ? Number(sedeId) : null,
+          proveedor_id: proveedorId ? Number(proveedorId) : null,
           almacen_ids: almacenIds,
         },
       });
@@ -83,6 +88,7 @@ export function UsuarioForm({
           nombres,
           apellidos,
           rol_id: Number(rolId),
+          proveedor_id: proveedorId ? Number(proveedorId) : null,
           almacen_ids: almacenIds,
           estado,
         },
@@ -215,6 +221,31 @@ export function UsuarioForm({
         <p className="text-xs text-text-secondary">
           La sede asignada solo se define al crear el usuario.
         </p>
+      )}
+
+      {rolSeleccionado?.nombre === "PROVEEDOR" && (
+        <div className="space-y-1">
+          <label htmlFor="proveedor_id" className="text-sm font-medium">
+            Proveedor
+          </label>
+          <select
+            id="proveedor_id"
+            value={proveedorId}
+            onChange={(event) => setProveedorId(event.target.value)}
+            required
+            className="w-full rounded-md border border-border/30 px-3 py-2 text-sm focus:border-primary focus:outline-none"
+          >
+            <option value="">Selecciona un proveedor</option>
+            {proveedores.map((proveedor) => (
+              <option key={proveedor.proveedor_id} value={proveedor.proveedor_id}>
+                {proveedor.razon_social}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-text-secondary">
+            Acota qué contratos, órdenes de compra y guías puede ver este usuario.
+          </p>
+        </div>
       )}
 
       {rolSeleccionado?.acceso_todos_almacenes ? (

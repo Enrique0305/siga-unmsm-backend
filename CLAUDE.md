@@ -789,6 +789,83 @@ MySQL corriendo para testear lógica de negocio.
    (fallando después por otro motivo esperado, sin datos de prueba
    completos) al apuntar al almacén sí asignado. `pytest -q` completo:
    18 tests en verde (suite previa intacta + los 2 nuevos).
+   ~~**Sesión 12 — Alcance de PROVEEDOR (Usuario → Proveedor)**~~ ✅
+   implementado. Cierra un hueco de confidencialidad documentado desde la
+   Sesión 2: `Usuario` no tenía FK a `Proveedor`, así que cualquier
+   usuario con rol `PROVEEDOR` veía y podía tocar los contratos, OCs,
+   guías y el directorio completo de proveedores del sistema — precios
+   pactados y condiciones de la competencia incluidos, no solo los
+   propios. Backend + frontend, con un cambio de esquema real (primero
+   desde la Sesión 1 que agrega una columna a una tabla ya existente).
+   **Esquema**: `usuario.proveedor_id INT NULL` + FK a `proveedor`,
+   agregada directo en `db/init/01_schema.sql` (instalaciones nuevas) y
+   replicada en `db/patches_historicos/11_parche_usuario_proveedor.sql`
+   (mismo patrón que `09_parche_password_usuario.sql`) para bases ya
+   corriendo. Alembic sigue en su baseline no-op (`0001_baseline.py`) —
+   se confirmó que nunca se usó para un cambio real, así que este parche
+   sigue el precedente real del proyecto (SQL directo) en vez de
+   introducir la primera migración Alembic real, que habría sido un
+   cambio de proceso más grande que el propio fix.
+   **JWT/identidad**: `create_access_token`/`CurrentUser` ganan
+   `proveedor_id: int | None` (mismo mecanismo que `almacenes`/
+   `acceso_todos_almacenes` para RN-20) — `_emitir_tokens` en `auth.py`
+   lo lee de `usuario.proveedor_id` en login y refresh. Nuevo
+   `CurrentUser.tiene_acceso_proveedor`/`deps.py::verificar_acceso_proveedor`,
+   mismo mensaje/status que su equivalente de almacén, pero con una
+   diferencia deliberada: **no restringe a nadie salvo al propio rol
+   `PROVEEDOR`** (ADMIN/LOGISTICA_CENTRAL nunca se bloquean, a diferencia
+   de `tiene_acceso_almacen` que depende de `acceso_todos_almacenes`).
+   **Alcance aplicado** (patrón: listas fuerzan el filtro según el rol,
+   detalle/escritura llaman `verificar_acceso_proveedor` tras resolver el
+   `proveedor_id` real): `proveedores.py` (nuevo filtro `proveedor_id` en
+   `crud/proveedor.py::list_filtrado`, antes solo `estado`/`buscar`),
+   `contratos.py` (ya tenía el filtro, solo faltaba forzarlo),
+   `ordenes_compra.py` (nuevo filtro en `crud/orden_compra.py::list_filtrado`
+   vía `.join(Contrato)`, ya que `OrdenCompra` no tiene `proveedor_id`
+   directo — solo llega vía `contrato_id → Contrato.proveedor_id`),
+   `guias_remision.py` (list + detalle + **creación**, esta última cierra
+   un hueco de impersonación real: antes un `PROVEEDOR` autenticado podía
+   mandar el `proveedor_id` de otro proveedor en el body al crear una
+   guía). `actas_observacion.py::crear_subsanacion` reutiliza los mismos
+   helpers de la Sesión 11 (`_almacen_id_de_inspeccion_detalle` etc.),
+   generalizados para devolver el objeto `GuiaRemision` completo en vez
+   de solo el almacén, evitando una segunda cadena de fetches paralela
+   para `.proveedor_id`. **Fuera de alcance, a propósito**:
+   `inspecciones.py` y el resto de `actas_observacion.py` (`PROVEEDOR`
+   nunca escribe ahí) y `pedidos_semanales.py` (sin vínculo directo a
+   proveedor en el modelo) — ampliar más allá del hueco descrito
+   ("ve todas las OCs/contratos/guías") quedó fuera de esta sesión.
+   Frontend: `UsuarioForm.tsx` (Sesión 10) gana un select "Proveedor"
+   condicional (`rolSeleccionado?.nombre === "PROVEEDOR"`, mismo criterio
+   que el ocultamiento de almacenes cuando `acceso_todos_almacenes`),
+   visible tanto en alta como en edición (a diferencia de `sede_id`, que
+   solo se define al crear — aquí si tiene sentido poder reasignar el
+   proveedor de un usuario ya existente). Regenerado el cliente orval
+   para traer `proveedor_id` en `UsuarioCreate`/`UsuarioUpdate`/
+   `UsuarioOut`. **Tests**: `test_usuarios.py` (crear/actualizar
+   `proveedor_id`), `test_contratos.py`/`test_compras.py`/
+   `test_inspeccion.py` con **dos proveedores independientes** cada uno
+   (se parametrizó `_preparar_contrato_con_producto` con overrides de
+   código/RUC/número de contrato para poder llamarla dos veces en el
+   mismo test sin chocar con las constraints UNIQUE) — lista filtrada sin
+   que el cliente tenga que pedirlo, detalle cruzado bloqueado (403), e
+   impersonación de guía bloqueada. Efecto colateral esperado: los tests
+   RN-20 de la Sesión 11 que usaban tokens `PROVEEDOR` sin `proveedor_id`
+   dejaron de pasar (ahora se bloquean también por proveedor, no solo por
+   almacén) — se corrigió pasando el mismo `proveedor_id` en ambos tokens
+   de cada test para aislar la dimensión que cada uno prueba. Verificado
+   además con un login real de punta a punta contra un seed real: usuario
+   `PROVEEDOR` creado desde `/administracion/nuevo` con su proveedor
+   asignado → login real → `GET /proveedores` devuelve solo el propio →
+   `GET /proveedores/{id}` de un competidor → 403 con el mensaje exacto.
+   `pytest -q` completo: 21/22 en verde (el único rojo es
+   `test_reportes.py::test_reportes_completo`, una fragilidad ya existente
+   y ajena a esta sesión — compara fechas con `date.today()` local contra
+   un timestamp SQLite en UTC, y el entorno estaba pasada la medianoche
+   UTC durante la verificación; queda anotado como tarea aparte, no se
+   tocó en esta sesión). `npx tsc --noEmit` + `npx eslint .` +
+   `npx next build` limpios sobre el repo completo (mismas 58 rutas, sin
+   rutas nuevas — solo cambios de formulario).
 
 ## 11. Cómo correr el proyecto
 

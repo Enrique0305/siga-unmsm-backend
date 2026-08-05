@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import CurrentUser, get_current_user, require_roles
+from app.api.deps import CurrentUser, get_current_user, require_roles, verificar_acceso_proveedor
 from app.crud.proveedor import proveedor_repo
 from app.db.session import get_db
 from app.schemas.common import Page
@@ -20,9 +20,12 @@ async def listar_proveedores(
     estado: str | None = "ACTIVO",
     buscar: str | None = None,
     db: AsyncSession = Depends(get_db),
-    _current: CurrentUser = Depends(get_current_user),
+    current: CurrentUser = Depends(get_current_user),
 ) -> Page[ProveedorOut]:
-    items, total = await proveedor_repo.list_filtrado(db, page=page, page_size=page_size, estado=estado, buscar=buscar)
+    proveedor_filtro = current.proveedor_id if current.rol == "PROVEEDOR" else None
+    items, total = await proveedor_repo.list_filtrado(
+        db, page=page, page_size=page_size, estado=estado, buscar=buscar, proveedor_id=proveedor_filtro
+    )
     return Page(items=items, total=total, page=page, page_size=page_size)
 
 
@@ -30,8 +33,9 @@ async def listar_proveedores(
 async def obtener_proveedor(
     proveedor_id: int,
     db: AsyncSession = Depends(get_db),
-    _current: CurrentUser = Depends(get_current_user),
+    current: CurrentUser = Depends(get_current_user),
 ) -> ProveedorOut:
+    verificar_acceso_proveedor(current, proveedor_id)
     proveedor = await proveedor_repo.get(db, proveedor_id)
     if proveedor is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Proveedor no encontrado")

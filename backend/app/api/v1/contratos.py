@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import CurrentUser, get_current_user, require_roles
+from app.api.deps import CurrentUser, get_current_user, require_roles, verificar_acceso_proveedor
 from app.crud.contrato import contrato_repo
 from app.db.session import get_db
 from app.schemas.common import Page
@@ -40,8 +40,10 @@ async def listar_contratos(
     estado: str | None = None,
     buscar: str | None = None,
     db: AsyncSession = Depends(get_db),
-    _current: CurrentUser = Depends(get_current_user),
+    current: CurrentUser = Depends(get_current_user),
 ) -> Page[ContratoListOut]:
+    if current.rol == "PROVEEDOR":
+        proveedor_id = current.proveedor_id
     items, total = await contrato_repo.list_filtrado(
         db, page=page, page_size=page_size, proveedor_id=proveedor_id, estado=estado, buscar=buscar
     )
@@ -57,11 +59,12 @@ async def listar_contratos(
 async def obtener_contrato(
     contrato_id: int,
     db: AsyncSession = Depends(get_db),
-    _current: CurrentUser = Depends(get_current_user),
+    current: CurrentUser = Depends(get_current_user),
 ) -> ContratoDetailOut:
     contrato = await contrato_repo.get_con_detalle(db, contrato_id)
     if contrato is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contrato no encontrado")
+    verificar_acceso_proveedor(current, contrato.proveedor_id)
     return _build_detail(contrato)
 
 

@@ -11,6 +11,7 @@ export interface UsuarioUpdate {
   apellidos?: string | null;
   rol_id?: number | null;
   sede_id?: number | null;
+  proveedor_id?: number | null;
   estado?: string | null;
   almacen_ids?: number[] | null;
 }

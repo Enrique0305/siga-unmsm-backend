@@ -2,7 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import CurrentUser, get_current_user, require_roles, verificar_acceso_almacen
+from app.api.deps import (
+    CurrentUser,
+    get_current_user,
+    require_roles,
+    verificar_acceso_almacen,
+    verificar_acceso_proveedor,
+)
 from app.crud.acta_observacion import acta_observacion_repo
 from app.db.session import get_db
 from app.models.compras import GuiaRemision
@@ -26,29 +32,31 @@ ROLES_INSPECCION = ("ADMIN", "INSPECTOR")
 ROLES_SUBSANACION = ("ADMIN", "LOGISTICA_CENTRAL", "PROVEEDOR")
 
 
-async def _almacen_id_de_inspeccion_detalle(db: AsyncSession, inspeccion_detalle_id: int) -> int | None:
-    """RN-20: deriva el almacén destino de la guía a partir de una línea de
-    inspección (InspeccionDetalle.guia_remision_detalle es lazy="joined",
-    así que .guia_remision_id no cuesta una query extra)."""
+async def _guia_de_inspeccion_detalle(db: AsyncSession, inspeccion_detalle_id: int) -> GuiaRemision | None:
+    """Deriva la guía de remisión a partir de una línea de inspección
+    (InspeccionDetalle.guia_remision_detalle es lazy="joined", así que
+    .guia_remision_id no cuesta una query extra). Devuelve el objeto
+    GuiaRemision completo (no solo almacen_destino_id) para que RN-20
+    (Sesión 11) y el alcance de PROVEEDOR (Sesión 12) reutilicen el mismo
+    fetch en vez de cadenas paralelas."""
     detalle = await db.get(InspeccionDetalle, inspeccion_detalle_id)
     if detalle is None:
         return None
-    guia = await db.get(GuiaRemision, detalle.guia_remision_detalle.guia_remision_id)
-    return guia.almacen_destino_id if guia else None
+    return await db.get(GuiaRemision, detalle.guia_remision_detalle.guia_remision_id)
 
 
-async def _almacen_id_de_acta(db: AsyncSession, acta_observacion_id: int) -> int | None:
+async def _guia_de_acta(db: AsyncSession, acta_observacion_id: int) -> GuiaRemision | None:
     acta = await db.get(ActaObservacion, acta_observacion_id)
     if acta is None:
         return None
-    return await _almacen_id_de_inspeccion_detalle(db, acta.inspeccion_detalle_id)
+    return await _guia_de_inspeccion_detalle(db, acta.inspeccion_detalle_id)
 
 
-async def _almacen_id_de_subsanacion(db: AsyncSession, subsanacion_id: int) -> int | None:
+async def _guia_de_subsanacion(db: AsyncSession, subsanacion_id: int) -> GuiaRemision | None:
     subsanacion = await db.get(Subsanacion, subsanacion_id)
     if subsanacion is None:
         return None
-    return await _almacen_id_de_acta(db, subsanacion.acta_observacion_id)
+    return await _guia_de_acta(db, subsanacion.acta_observacion_id)
 
 
 @router.get("", response_model=Page[ActaObservacionOut])
@@ -88,9 +96,9 @@ async def crear_acta_observacion(
 ) -> ActaObservacionOut:
     """Solo se puede levantar sobre una línea de inspección con resultado
     OBSERVADO, y como máximo una vez por línea."""
-    almacen_id = await _almacen_id_de_inspeccion_detalle(db, inspeccion_detalle_id)
-    if almacen_id is not None:
-        verificar_acceso_almacen(current, almacen_id)
+    guia = await _guia_de_inspeccion_detalle(db, inspeccion_detalle_id)
+    if guia is not None:
+        verificar_acceso_almacen(current, guia.almacen_destino_id)
 
     try:
         acta = await acta_observacion_repo.crear_acta(
@@ -117,9 +125,10 @@ async def crear_subsanacion(
     db: AsyncSession = Depends(get_db),
     current: CurrentUser = Depends(require_roles(*ROLES_SUBSANACION)),
 ) -> SubsanacionOut:
-    almacen_id = await _almacen_id_de_acta(db, acta_observacion_id)
-    if almacen_id is not None:
-        verificar_acceso_almacen(current, almacen_id)
+    guia = await _guia_de_acta(db, acta_observacion_id)
+    if guia is not None:
+        verificar_acceso_almacen(current, guia.almacen_destino_id)
+        verificar_acceso_proveedor(current, guia.proveedor_id)
 
     try:
         subsanacion = await acta_observacion_repo.crear_subsanacion(db, acta_observacion_id, data)
@@ -141,9 +150,9 @@ async def registrar_reinspeccion(
 ) -> SubsanacionOut:
     """CONFORME -> acta SUBSANADA; NO_CONFORME -> acta RECHAZADA (terminal en
     este módulo). Si la guía ya no tiene actas ABIERTA, pasa a SUBSANADO."""
-    almacen_id = await _almacen_id_de_subsanacion(db, subsanacion_id)
-    if almacen_id is not None:
-        verificar_acceso_almacen(current, almacen_id)
+    guia = await _guia_de_subsanacion(db, subsanacion_id)
+    if guia is not None:
+        verificar_acceso_almacen(current, guia.almacen_destino_id)
 
     try:
         subsanacion = await acta_observacion_repo.registrar_reinspeccion(
