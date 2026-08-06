@@ -69,14 +69,19 @@ components/ui/                 Componentes reusables (StatCard, ...)
 components/providers/          QueryProvider (TanStack Query)
 ```
 
-## Estado actual (Sesión 1)
+## Estado actual
 
-Implementado: scaffold, tema con la paleta institucional, cliente API
-(orval + TanStack Query), autenticación completa, shell con sidebar
-filtrado por rol, Dashboard con KPIs reales.
+Completo: scaffold, tema con la paleta institucional, cliente API (orval
++ TanStack Query), autenticación, shell con sidebar filtrado por rol,
+Dashboard con KPIs reales, y las pantallas de los 17 módulos del backend
+(Planificación/Dosificación, Proveedores/Contratos, Compras, Recepción/
+Calidad, Almacenes, Cocina, Conformidad/Pagos, Reportes/Auditoría,
+Administración) — mismo patrón en todas: Server Component de lista +
+Client Component de formulario con hooks `orval`.
 
-Pendiente (sesiones futuras, mismo patrón: Server Component de lista +
-Client Component de formulario con hooks `orval`): las ~23 pantallas
-restantes del catálogo (Planificación, Contratos, Compras, Recepción/
-Calidad, Almacenes, Cocina, Conformidad/Pagos, Reportes, Administración),
-tests automatizados de frontend, build de producción multi-stage.
+Ver la sección 12 de `../CLAUDE.md` para la arquitectura completa (los
+dos caminos BFF, gotchas de Next.js 16/Tailwind v4 ya resueltos) y el
+historial sesión por sesión de qué pantalla se construyó en cuál.
+
+Pendiente: tests automatizados de frontend, build de producción
+multi-stage.
