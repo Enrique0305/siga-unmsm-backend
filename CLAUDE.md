@@ -328,7 +328,9 @@ MySQL corriendo para testear lógica de negocio.
    no "documentos" de RN-08); `seed.py` y las siembras directas de los
    tests tampoco (sin request no hay `ContextVar`, y sin actor no hay a
    quién auditar). `detalle_json` queda `None` por ahora — enriquecerlo
-   con diffs de columnas es una mejora futura, no bloqueante.
+   con diffs de columnas es una mejora futura, no bloqueante. **Cerrado
+   en la revisión de deuda técnica de agosto 2026** (ver sección 10, tras
+   la Sesión 21).
    Reportes: `GET /reportes/valorizacion-inventario`,
    `/comparativo-consumo` (BOM de Módulo 1A vs. comprado de Módulo 3 vs.
    recibido de Almacén vs. despachado de Módulo 4 — el que más tablas
@@ -1531,6 +1533,46 @@ MySQL corriendo para testear lógica de negocio.
    descartable con el seed real: crear un producto → `/reportes/
    auditoria` muestra "Administrador SIGA-UNMSM" (el nombre real del
    admin sembrado) en vez de "Usuario #1".
+   ~~**Deuda técnica: enriquecer detalle_json en Auditoría**~~ ✅
+   corregido. `AuditoriaLog.detalle_json` existía en el esquema desde la
+   Sesión 10 pero siempre quedaba `NULL` — el evento global
+   (`core/audit.py::_registrar_auditoria`) solo registraba
+   entidad/acción/actor, nunca qué cambió ("mejora futura, no
+   bloqueante"). Ahora calcula el diff real: snapshot completo de
+   columnas en `CREAR`/`ELIMINAR`, `{"columna": {"antes":..., "despues":
+   ...}}` solo de las columnas que cambiaron en `ACTUALIZAR` (vía
+   `state.attrs[key].history`).
+   **Riesgo investigado antes de implementar** (CLAUDE.md gotcha #7.3:
+   columnas `GENERATED ALWAYS ... STORED`, ej. `ProductoContratado.
+   tope_monetario`, quedan "expiradas" tras el INSERT y leerlas sin
+   refrescar revienta en async): confirmado empíricamente con un modelo
+   mínimo que en SQLite (motor de los tests) `INSERT ... RETURNING` ya
+   las resuelve (`inspect(obj).unloaded` vacío justo tras el flush) —
+   pero el gotcha describe MySQL/aiomysql (producción), que no resuelve
+   `RETURNING` igual, así que ahí sí quedan expiradas. Como el evento
+   corre para *toda* sesión en *todo* entorno, `_snapshot`/`_diff` filtran
+   `attr.key in state.unloaded` antes de leer cualquier columna — en
+   SQLite ese chequeo nunca excluye nada (por eso los tests no lo
+   detectarían solos), en MySQL sí evita el crash. Se verificó además
+   que la suite completa (37 tests, todos los módulos) sigue en verde
+   tras el cambio — el evento corre para *todas* las entidades de *todos*
+   los módulos, así que cualquier columna `Computed`/relación mal cubierta
+   habría fallado en cualquier archivo, no solo en `test_auditoria.py`.
+   **Dato sensible excluido**: `Usuario.password_hash` (única columna
+   sensible en todo el esquema, confirmado con `grep -rn "password\|
+   secret\|token" app/models/*.py`) nunca aparece en `detalle_json`, ni
+   siquiera como hash — `CAMPOS_EXCLUIDOS` en `core/audit.py`.
+   `tests/test_auditoria.py`: asserts del snapshot completo en `CREAR`,
+   del diff acotado (solo la columna que cambió) en `ACTUALIZAR`, y un
+   caso que actualiza un `Usuario` real vía `PATCH /usuarios/{id}`
+   confirmando que `password_hash` no aparece en su `detalle_json`.
+   `pytest -q` completo: 37/37 en verde. Verificado además en el
+   navegador contra un backend descartable con el seed real: crear +
+   editar un producto → `/reportes/auditoria` muestra el `pre` (ya
+   renderizado desde la Sesión 10) con el snapshot completo en la fila
+   `CREAR` y el diff exacto (`{"nombre": {"antes":..., "despues":...}}`)
+   en la fila `ACTUALIZAR`, sin `codigo` ni otras columnas sin tocar. Sin
+   cambios de schema/endpoint/frontend — solo `core/audit.py`.
    ~~**Deuda técnica: filtros de /reportes (sede, proveedor, producto)**~~
    ✅ corregido. Documentado desde la Sesión 10: el diseño original
    (línea 110: "Reportes por periodo/contrato/proveedor/producto/centro
