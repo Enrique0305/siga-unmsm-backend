@@ -26,8 +26,9 @@ app = FastAPI(
     version="0.1.0",
     description=(
         "API del Sistema Integral de Gestión de Almacén y Abastecimiento "
-        "Alimentario — UNMSM. Módulos activos: Autenticación, Usuarios, "
-        "Almacenes, Catálogo Nutricional."
+        "Alimentario — UNMSM. Cubre planificación nutricional, contratos y "
+        "compras, recepción e inspección, almacén multialmacén, cocina/"
+        "consumo, conformidad y pagos, y reportes/auditoría/administración."
     ),
     openapi_url=f"{settings.API_V1_PREFIX}/openapi.json",
     docs_url=f"{settings.API_V1_PREFIX}/docs",

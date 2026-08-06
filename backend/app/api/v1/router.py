@@ -68,5 +68,6 @@ api_router.include_router(reportes.router)
 api_router.include_router(parametros_sistema.router)
 api_router.include_router(notificaciones.router)
 
-# Backend completo (Módulos 1 a 5 + Reportes/auditoría transversal,
-# sección 10 de CLAUDE.md). Queda pendiente el Frontend Next.js.
+# Backend completo (Módulos 1 a 5 + Reportes/auditoría/administración
+# transversal, sección 10 de CLAUDE.md) — el frontend Next.js también
+# está completo, ver frontend/README.md.
