@@ -44,6 +44,12 @@ class CRUDBase(Generic[ModelType]):
         obj = self.model(**obj_in)
         db.add(obj)
         await db.flush()
+        # Refresca columnas con server_default/Computed (ej. creado_en) tras
+        # el INSERT — en MySQL/aiomysql quedan "expiradas" sin esto, y
+        # serializarlas fuera de un await revienta con MissingGreenlet
+        # (CLAUDE.md gotcha #7.3). Invisible en SQLite (los tests resuelven
+        # RETURNING distinto), por eso ningún test lo detectó.
+        await db.refresh(obj)
         return obj
 
     async def delete(self, db: AsyncSession, pk: Any) -> None:

@@ -1734,6 +1734,65 @@ MySQL corriendo para testear lógica de negocio.
    catálogos directo, que es justamente por lo que este hueco nunca se
    detectó ahí).
 
+   ~~**Bug crítico: `CRUDBase.create()` sin refresh — MissingGreenlet en
+   MySQL al crear casi cualquier entidad**~~ ✅ corregido. Encontrado al
+   verificar de punta a punta los flujos de Compras y Almacenes contra el
+   despliegue de producción real (MySQL), pedido explícito del usuario
+   tras el fix del seed de arriba. Al crear una Ración Anual desde
+   `/planificacion/nuevo`, la API respondía 500
+   (`ResponseValidationError` → `MissingGreenlet: greenlet_spawn has not
+   been called`) al serializar `creado_en`. Causa raíz:
+   `CRUDBase.create()` (`app/crud/base.py`, usado por casi todos los
+   repos que no sobreescriben `create`) hacía `db.add(obj)` +
+   `await db.flush()` y devolvía el objeto sin refrescarlo — cualquier
+   columna `server_default=func.now()` (`creado_en`, presente en 15
+   modelos) o `Computed(...)` queda "expirada" tras el INSERT. En MySQL/
+   aiomysql (sin soporte de `RETURNING`) el primer acceso a esa columna
+   fuera de un `await` explícito revienta con `MissingGreenlet` — mismo
+   gotcha ya documentado en la sección 7.3, pero nunca aplicado de forma
+   centralizada. **Invisible en TODA la suite de tests** (37+ tests, 41
+   tras este fix) porque corre 100% contra SQLite en memoria, donde
+   `INSERT ... RETURNING` sí resuelve esas columnas de inmediato — ni un
+   solo test lo habría detectado, sin importar cuántos se agregaran,
+   porque el motor de test nunca reproduce el fallo. Algunos endpoints
+   (`crear_proveedor`, `crear_producto`) ya llamaban `await db.refresh(...)`
+   explícito tras el commit y por eso funcionaban bien; otros
+   (`crear_racion_anual`, `crear_almacen`, `crear_menu_quincenal`,
+   `agregar_dia_menu`, y cualquier otro que use `CRUDBase.create()` sin
+   ese paso extra) estaban rotos en producción real sin que ninguna
+   sesión previa lo notara — todas las "verificaciones en el navegador"
+   documentadas en sesiones anteriores corrían contra un backend
+   descartable con **SQLite**, nunca contra MySQL real (primera vez que
+   se prueban estos flujos contra el propio despliegue de producción).
+   Fix: un solo cambio, centralizado — `CRUDBase.create()` ahora hace
+   `await db.refresh(obj)` justo después del `flush()`, antes de
+   devolver el objeto. Refresca solo columnas (no dispara lazy-load de
+   relaciones no cargadas — mismo comportamiento ya usado a mano en
+   `crud/contrato.py::agregar_producto_contratado` y
+   `crud/planificacion.py::agregar_plato`), así que es seguro para los
+   ~30 repos que heredan de `CRUDBase` sin excepción. `pytest -q`
+   completo: 41/41 en verde (cero regresiones pese a tocar la base de
+   casi todo el CRUD). Verificado extensivamente contra el despliegue de
+   producción real tras reconstruir la imagen `api`: cadena completa de
+   Compras (producto → proveedor → contrato con producto contratado
+   VIGENTE → orden de compra multialmacén RN-15 → pedido semanal → guía
+   de remisión → inspección CONFORME → ingreso a almacén RN-04) y de
+   Almacenes (stock/kardex con saldo corrido correcto RN-06 → ajuste
+   +5 → merma -3 → devolución desde cocina +2 → inventario físico con
+   diferencia +6 cerrado con ajuste automático `INVENTARIO_AJUSTE` →
+   transferencia RN-18 entre 2 almacenes, salida inmediata al crear,
+   recepción con diferencia `RECIBIDA_CON_DIFERENCIA`, costo unitario
+   preservado del origen sin re-promediar en destino) — cada paso creó
+   una entidad nueva vía un endpoint que pasa por `CRUDBase.create()`,
+   confirmando el fix de forma end-to-end, no solo en el caso puntual de
+   `RacionAnual` que lo destapó. **Lección para sesiones futuras**: la
+   suite de tests en SQLite verifica lógica de negocio correctamente,
+   pero no puede detectar esta clase de bug por diseño (diferencia real
+   de motor, no un caso límite); cualquier duda sobre si un flujo de
+   creación funciona en MySQL real debe verificarse contra un backend
+   con MySQL de verdad (Docker Compose), no solo contra SQLite
+   descartable ni solo contra la suite de pytest.
+
 ## 11. Cómo correr el proyecto
 
 Ver `README.md` en la raíz — resumen: `cp .env.example .env` → cambiar
