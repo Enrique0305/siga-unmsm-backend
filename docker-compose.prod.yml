@@ -1,0 +1,67 @@
+# Configuración de PRODUCCIÓN — a diferencia de docker-compose.yml (pensado
+# para desarrollo: hot-reload, volúmenes de código fuente montados, `next
+# dev`), este archivo:
+#   - construye el frontend con Dockerfile.prod (build optimizado, sin
+#     servidor de desarrollo)
+#   - corre la API sin --reload y sin montar el código fuente como volumen
+#     (usa el código ya copiado dentro de la imagen en el build)
+#   - NO publica el puerto de MySQL (3306) al host — solo accesible entre
+#     contenedores de este compose
+#
+# Uso: docker compose -f docker-compose.prod.yml up --build -d
+#
+# Sigue pendiente (no resuelto aquí, requiere dominio/certificado reales):
+# un proxy inverso con TLS delante de la API (puerto 8000) y el frontend
+# (puerto 3000) — ver README.md.
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: siga_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?falta MYSQL_ROOT_PASSWORD en .env}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-siga_unmsm}
+      MYSQL_USER: ${MYSQL_USER:-siga_app}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?falta MYSQL_PASSWORD en .env}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: siga_api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: mysql+aiomysql://${MYSQL_USER:-siga_app}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE:-siga_unmsm}
+    ports:
+      - "8000:8000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    container_name: siga_frontend
+    restart: unless-stopped
+    environment:
+      API_URL: http://api:8000/api/v1
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+volumes:
+  mysql_data:

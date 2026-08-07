@@ -1,0 +1,35 @@
+# Build de producción — a diferencia de Dockerfile (que corre `next dev`
+# para desarrollo con hot-reload), esta imagen compila con `next build`
+# (output: "standalone" en next.config.ts) y sirve con el server mínimo
+# que Next.js genera, sin necesitar node_modules completo en runtime.
+
+FROM node:22-slim AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+
+FROM node:22-slim AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+# API_URL real de build (server-to-server, no NEXT_PUBLIC_) se inyecta en
+# runtime vía docker-compose.prod.yml; en build alcanza con un valor
+# placeholder porque el build no llama al backend.
+ENV API_URL=http://api:8000/api/v1
+RUN npm run build
+
+FROM node:22-slim AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
+
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+USER nextjs
+EXPOSE 3000
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+
+CMD ["node", "server.js"]

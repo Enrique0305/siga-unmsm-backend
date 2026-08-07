@@ -69,6 +69,36 @@ docker compose exec api python -m app.seed
 El seed imprime el correo/contraseña temporal del administrador — cámbiala
 apenas inicies sesión.
 
+## Producción
+
+`docker-compose.yml` está pensado para **desarrollo** (hot-reload: monta
+el código fuente como volumen y corre `next dev`/`uvicorn --reload`). Para
+producción usa `docker-compose.prod.yml`, que:
+
+- construye el frontend con `frontend/Dockerfile.prod` (build optimizado
+  de Next.js — `output: "standalone"` — sin servidor de desarrollo);
+- corre la API sin `--reload` y sin montar el código como volumen (usa el
+  código ya copiado en la imagen);
+- **no publica el puerto de MySQL (3306)** al host — solo accesible entre
+  contenedores del propio compose.
+
+```bash
+cp .env.example .env
+# SECRET_KEY real (openssl rand -hex 32), MYSQL_PASSWORD/MYSQL_ROOT_PASSWORD
+# reales (no los de ejemplo), BACKEND_CORS_ORIGINS con el dominio real del
+# frontend, ENVIRONMENT=production
+
+docker compose -f docker-compose.prod.yml up --build -d
+docker compose -f docker-compose.prod.yml exec api alembic stamp head
+docker compose -f docker-compose.prod.yml exec api python -m app.seed
+```
+
+**Pendiente, fuera del alcance de este compose** (requiere un dominio y
+certificado reales, no se puede resolver de forma genérica): un proxy
+inverso con TLS (Nginx/Caddy/Traefik) delante de la API (puerto 8000) y
+el frontend (puerto 3000) — hoy ambos quedan en HTTP plano. Si vas a
+correr esto expuesto a internet, no lo hagas sin ese proxy delante.
+
 ## Módulos implementados
 
 | Módulo | Descripción | Estado |
