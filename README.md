@@ -62,7 +62,8 @@ La primera vez, con los contenedores corriendo:
 # Le dice a Alembic "el esquema ya existe, este es el punto de partida"
 docker compose exec api alembic stamp head
 
-# Crea los 8 roles, las 3 sedes, los 4 almacenes reales y el usuario admin
+# Crea los 8 roles, las 3 sedes, los 4 almacenes reales, un centro de
+# consumo por almacén, 4 unidades de medida base y el usuario admin
 docker compose exec api python -m app.seed
 ```
 

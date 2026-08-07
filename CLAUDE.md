@@ -215,8 +215,13 @@ o recetas) · RN-27 (pedido semanal separado por almacén+comedor) · RN-28
 | Reportes transversales | `crud/reportes.py` | `GET /reportes/valorizacion-inventario`, `/comparativo-consumo`, `/alertas` | ✅ `tests/test_reportes.py` |
 
 **Seed inicial:** `app/seed.py` crea los 8 roles, las 3 sedes, los 4
-almacenes reales y el usuario admin (`docker compose exec api python -m
-app.seed`).
+almacenes reales, un centro de consumo por almacén, 4 unidades de medida
+base (KG/G/L/UND) y el usuario admin (`docker compose exec api python -m
+app.seed`). Es idempotente — correrlo de nuevo sobre una base ya sembrada
+no duplica nada, solo agrega lo que falte (ver cierre de sesión al final
+de la sección 10: sin centro de consumo/unidad de medida, una instalación
+nueva no puede crear ni una Ración Anual ni un Producto desde la propia
+aplicación).
 
 **Patrón de testing:** SQLite en memoria + `Base.metadata.create_all()` +
 override de la dependencia `get_db` + `httpx.AsyncClient` contra la app
@@ -1687,6 +1692,47 @@ MySQL corriendo para testear lógica de negocio.
    app real vía `httpx.AsyncClient`, misma prueba que daría un backend
    descartable manual. Sin cambios de frontend (`BomConsolidadoOut` gana
    un campo que ninguna pantalla renderiza hoy explícitamente).
+   ~~**Despliegue de producción + bug real en la siembra inicial**~~ ✅
+   corregido. Primera vez que el proyecto se levanta con
+   `docker compose` en modo producción real (no solo `docker-compose.yml`
+   de desarrollo, nunca antes ejercitado de punta a punta). Se agregó
+   `frontend/Dockerfile.prod` (build multi-etapa: `npm ci` → `next build`
+   con `output: "standalone"` en `next.config.ts` → runtime mínimo
+   `node server.js`, sin `node_modules` completo) y
+   `docker-compose.prod.yml` (mismo esquema que el de desarrollo pero sin
+   volúmenes de código fuente, sin `--reload` en uvicorn, y **sin publicar
+   el puerto 3306 de MySQL al host** — solo accesible entre contenedores
+   del propio compose). `API_URL` del frontend se sigue resolviendo en
+   runtime vía `process.env` (nunca `NEXT_PUBLIC_`, ver sección 12 punto
+   3), así que el build de producción no necesita saber la URL real del
+   backend de antemano — confirmado leyendo el propio código antes de
+   asumirlo, no de memoria.
+   **Bug real encontrado al usar el despliegue de verdad** (no en dev, que
+   nunca se había probado con datos reales desde cero): `app/seed.py`
+   creaba roles, sedes y almacenes, pero nunca `centro_consumo` ni
+   `unidad_medida` — y como `catalogos.py` es de solo lectura (sección 9,
+   sin ningún endpoint de creación para esas dos tablas), una instalación
+   nueva quedaba **sin ninguna forma de crear una Ración Anual** (exige
+   sede+centro de consumo) **ni un Producto** (exige unidad de medida)
+   desde la propia aplicación — ni por API ni por UI. No es un problema
+   de una pantalla; es un hueco real del script de siembra, invisible
+   hasta que alguien probó los flujos reales sobre una base recién
+   creada (los tests de pytest nunca lo habrían detectado porque cada uno
+   siembra sus propios catálogos mínimos directo en SQLite, sin pasar por
+   `app/seed.py`). Fix: `app/seed.py` ahora también crea un centro de
+   consumo por almacén (`Comedor <sede>`, mismo `sede_id`/`almacen_id` que
+   el almacén correspondiente) y 4 unidades de medida base (KG, G, L,
+   UND) — mismo criterio idempotente que el resto del seed (por
+   nombre/código, salta si ya existe). Verificado en el propio despliegue
+   de producción recién levantado: reconstruir la imagen `api` con el fix,
+   volver a correr `python -m app.seed` (no duplicó roles/sedes/almacenes/
+   admin ya existentes, sí agregó los 4 centros de consumo y las 4
+   unidades) → `/planificacion/nuevo` mostró sedes y centro de consumo
+   reales → `/administracion/productos/nuevo` mostró las 4 unidades.
+   Sin test automatizado nuevo (es un script de operación, no lógica de
+   negocio — los tests ya cubren `RacionAnual`/`Producto` sembrando estos
+   catálogos directo, que es justamente por lo que este hueco nunca se
+   detectó ahí).
 
 ## 11. Cómo correr el proyecto
 
@@ -1695,6 +1741,16 @@ Ver `README.md` en la raíz — resumen: `cp .env.example .env` → cambiar
 `docker compose exec api alembic stamp head && docker compose exec api
 python -m app.seed`. Docs interactivas en
 `http://localhost:8000/api/v1/docs`.
+
+**Producción:** `docker-compose.yml` es de desarrollo (hot-reload, código
+montado como volumen, `next dev`). Para producción usar
+`docker-compose.prod.yml` (`frontend/Dockerfile.prod` con build
+optimizado — `output: "standalone"` en `next.config.ts` —, API sin
+`--reload`, puerto de MySQL sin publicar al host). Verificado de punta a
+punta contra un despliegue real: build de los 3 servicios, arranque,
+login y navegación reales. Ver la sección "Producción" de `README.md`
+para el comando exacto y lo que queda pendiente (proxy inverso con TLS,
+fuera de alcance sin un dominio real).
 
 ## 12. Frontend (Next.js) — arquitectura y gotchas
 
