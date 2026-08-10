@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -61,6 +61,26 @@ class CRUDMenuDia(CRUDBase[MenuDia]):
             .options(selectinload(MenuDia.platos).selectinload(Plato.receta))
         )
         return (await db.execute(stmt)).scalar_one_or_none()
+
+    async def get_menu_diario(self, db: AsyncSession, fecha: date, centro_consumo_id: int) -> list[MenuDia]:
+        """Menú(s) de un día para un centro de consumo — uno por tipo_servicio (DESAYUNO/ALMUERZO/CENA).
+
+        Solo mira el MenuQuincenal VIGENTE: un BORRADOR/EN_REVISION todavía
+        puede cambiar, así que no es "el menú" real de ese día para quien
+        consume este endpoint desde afuera.
+        """
+        stmt = (
+            select(MenuDia)
+            .join(MenuQuincenal, MenuDia.menu_id == MenuQuincenal.menu_id)
+            .join(RacionAnual, MenuQuincenal.racion_anual_id == RacionAnual.racion_anual_id)
+            .where(
+                MenuDia.fecha == fecha,
+                RacionAnual.centro_consumo_id == centro_consumo_id,
+                MenuQuincenal.estado == "VIGENTE",
+            )
+            .options(selectinload(MenuDia.platos).selectinload(Plato.receta))
+        )
+        return list((await db.execute(stmt)).scalars().all())
 
     async def agregar_plato(self, db: AsyncSession, menu_dia_id: int, receta_id: int, raciones_override: int | None) -> Plato:
         """RN-22: solo recetas en estado VIGENTE pueden incorporarse a un menú."""

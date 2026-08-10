@@ -224,6 +224,87 @@ async def test_menu_quincenal_dias_platos_rn22_y_estado(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_menu_diario(client: AsyncClient):
+    """GET /planificacion/menu-diario — pensado para consumo externo (fuera del propio
+    frontend): resuelve en una sola llamada lo que antes exigía encadenar menú
+    quincenal vigente -> sus días -> detalle del día."""
+    headers = _headers_admin()
+
+    racion_resp = await client.post(
+        "/api/v1/planificacion/raciones-anuales",
+        headers=headers,
+        json={"sede_id": 1, "centro_consumo_id": 1, "anio": 2026, "poblacion_atendida": 100, "raciones_dia": 100},
+    )
+    assert racion_resp.status_code == 201, racion_resp.text
+    racion_id = racion_resp.json()["racion_anual_id"]
+
+    menu_resp = await client.post(
+        "/api/v1/planificacion/menus-quincenales",
+        headers=headers,
+        json={"racion_anual_id": racion_id, "quincena_inicio": "2026-09-01", "quincena_fin": "2026-09-15"},
+    )
+    assert menu_resp.status_code == 201, menu_resp.text
+    menu_id = menu_resp.json()["menu_id"]
+
+    dia_resp = await client.post(
+        f"/api/v1/planificacion/menus-quincenales/{menu_id}/dias",
+        headers=headers,
+        json={"fecha": "2026-09-03", "tipo_servicio": "ALMUERZO", "raciones_programadas": 100},
+    )
+    assert dia_resp.status_code == 201, dia_resp.text
+    menu_dia_id = dia_resp.json()["menu_dia_id"]
+
+    _, receta_id = await _crear_receta_vigente(client, headers, "MENUDIA")
+    plato_resp = await client.post(
+        f"/api/v1/planificacion/dias/{menu_dia_id}/platos", headers=headers, json={"receta_id": receta_id}
+    )
+    assert plato_resp.status_code == 201, plato_resp.text
+
+    # el menú quincenal sigue en BORRADOR: todavía no es "el" menú del día
+    aun_no_vigente = await client.get(
+        "/api/v1/planificacion/menu-diario",
+        headers=headers,
+        params={"fecha": "2026-09-03", "centro_consumo_id": 1},
+    )
+    assert aun_no_vigente.status_code == 200, aun_no_vigente.text
+    assert aun_no_vigente.json() == []
+
+    for estado in ("EN_REVISION", "APROBADO", "VIGENTE"):
+        r = await client.patch(
+            f"/api/v1/planificacion/menus-quincenales/{menu_id}/estado", headers=headers, json={"estado": estado}
+        )
+        assert r.status_code == 200, r.text
+
+    ok = await client.get(
+        "/api/v1/planificacion/menu-diario",
+        headers=headers,
+        params={"fecha": "2026-09-03", "centro_consumo_id": 1},
+    )
+    assert ok.status_code == 200, ok.text
+    dias = ok.json()
+    assert len(dias) == 1
+    assert dias[0]["tipo_servicio"] == "ALMUERZO"
+    assert dias[0]["raciones_programadas"] == 100
+    assert len(dias[0]["platos"]) == 1
+    assert dias[0]["platos"][0]["receta_nombre"] == "Receta MENUDIA"
+
+    # otra fecha o otro centro de consumo: sin resultados, no error
+    otra_fecha = await client.get(
+        "/api/v1/planificacion/menu-diario",
+        headers=headers,
+        params={"fecha": "2026-09-04", "centro_consumo_id": 1},
+    )
+    assert otra_fecha.json() == []
+
+    otro_centro = await client.get(
+        "/api/v1/planificacion/menu-diario",
+        headers=headers,
+        params={"fecha": "2026-09-03", "centro_consumo_id": 999},
+    )
+    assert otro_centro.json() == []
+
+
+@pytest.mark.asyncio
 async def test_catalogos_sedes_y_centros_consumo(client: AsyncClient):
     headers = _headers_admin()
 

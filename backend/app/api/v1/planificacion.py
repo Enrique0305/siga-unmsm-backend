@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -260,6 +262,35 @@ async def agregar_plato_a_dia(
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
     return PlatoOut.from_model(plato)
+
+
+# ---------------------------------------------------------- menú diario
+@router.get(
+    "/menu-diario",
+    response_model=list[MenuDiaDetailOut],
+    summary="Menú del día para un centro de consumo (para consumo externo)",
+)
+async def obtener_menu_diario(
+    fecha: date,
+    centro_consumo_id: int,
+    db: AsyncSession = Depends(get_db),
+    _current: CurrentUser = Depends(get_current_user),
+) -> list[MenuDiaDetailOut]:
+    """Resuelve en una sola llamada lo que antes exigía encadenar 3 endpoints
+    (menú quincenal vigente -> sus días -> detalle del día). Solo mira el
+    MenuQuincenal en estado VIGENTE (ver docstring de get_menu_diario)."""
+    dias = await menu_dia_repo.get_menu_diario(db, fecha, centro_consumo_id)
+    return [
+        MenuDiaDetailOut(
+            menu_dia_id=dia.menu_dia_id,
+            menu_id=dia.menu_id,
+            fecha=dia.fecha,
+            tipo_servicio=dia.tipo_servicio,
+            raciones_programadas=dia.raciones_programadas,
+            platos=[PlatoOut.from_model(p) for p in dia.platos],
+        )
+        for dia in dias
+    ]
 
 
 # ------------------------------------------------------- dosificación (BOM)

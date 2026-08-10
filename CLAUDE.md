@@ -1793,6 +1793,40 @@ MySQL corriendo para testear lógica de negocio.
    con MySQL de verdad (Docker Compose), no solo contra SQLite
    descartable ni solo contra la suite de pytest.
 
+   ~~**Endpoint `GET /planificacion/menu-diario` (consumo externo)**~~ ✅
+   implementado. Pedido explícito del usuario: quería consumir "el menú
+   del día" desde otro proyecto y no existía ningún recurso para eso —
+   solo se podía llegar encadenando `GET /menus-quincenales?estado=
+   VIGENTE` → `GET /menus-quincenales/{id}/dias` → filtrar por fecha en
+   el cliente → `GET /dias/{menu_dia_id}`. Nuevo
+   `GET /planificacion/menu-diario?fecha=&centro_consumo_id=` resuelve
+   eso en una sola llamada: `CRUDMenuDia.get_menu_diario` (`crud/
+   planificacion.py`) hace `JOIN MenuDia → MenuQuincenal → RacionAnual`
+   filtrando por `MenuDia.fecha`, `RacionAnual.centro_consumo_id` y
+   **`MenuQuincenal.estado == "VIGENTE"`** — deliberado: un menú en
+   BORRADOR/EN_REVISION/APROBADO todavía puede cambiar, así que no es
+   "el" menú real de ese día para un consumidor externo que no tiene
+   forma de saber que el que está viendo podría no ser el definitivo.
+   Devuelve una lista (`list[MenuDiaDetailOut]`, mismo schema que ya
+   usaba `GET /dias/{id}`), no un objeto único, porque `menu_dia` no
+   tiene UNIQUE por `(menu_id, fecha, tipo_servicio)` — un mismo día
+   puede tener hasta 3 filas reales (DESAYUNO/ALMUERZO/CENA). Mismo
+   criterio de autenticación que el resto del router: requiere JWT
+   (`Depends(get_current_user)`, sin rol específico) — no hay ningún
+   endpoint público en todo el backend, así que el consumidor externo
+   tiene que autenticarse contra `/auth/login` primero, igual que
+   cualquier otro cliente. Test nuevo
+   `test_planificacion.py::test_menu_diario`: confirma que con el menú
+   quincenal todavía en BORRADOR el endpoint devuelve `[]` (no un error);
+   tras avanzarlo a VIGENTE devuelve la fila con sus platos
+   (`receta_nombre` incluido); fecha u centro de consumo que no calzan
+   devuelven `[]` sin excepción. `pytest -q` completo: 42/42 en verde.
+   Verificado además contra el despliegue de producción real tras
+   reconstruir la imagen `api`: 422 sin parámetros, ruta presente en
+   `/openapi.json`, 200 con `[]` para una combinación fecha/centro sin
+   menú vigente. Sin cambios de frontend (el pedido era explícitamente
+   para consumo desde otro proyecto, no una pantalla nueva).
+
 ## 11. Cómo correr el proyecto
 
 Ver `README.md` en la raíz — resumen: `cp .env.example .env` → cambiar
