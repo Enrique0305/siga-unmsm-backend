@@ -50,7 +50,13 @@ async def crear_usuario(
     except IntegrityError:
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="El correo ya está registrado")
-    await db.refresh(usuario, attribute_names=["rol"])
+    # Refresh completo, no solo ["rol"]: `_to_out` lee `usuario.__dict__`
+    # directo, y `db.commit()` expira TODAS las columnas (incluida
+    # creado_en, server_default) — un refresh acotado a un solo atributo
+    # no las repone, y __dict__ silenciosamente no las tiene (a diferencia
+    # de un getattr, que sí dispararía la carga). Invisible en SQLite
+    # (mismo motivo que el fix de CRUDBase.create()).
+    await db.refresh(usuario)
     return await _to_out(db, usuario)
 
 
@@ -66,5 +72,11 @@ async def actualizar_usuario(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
     usuario = await usuario_repo.update_con_almacenes(db, usuario, data)
     await db.commit()
-    await db.refresh(usuario, attribute_names=["rol"])
+    # Refresh completo, no solo ["rol"]: `_to_out` lee `usuario.__dict__`
+    # directo, y `db.commit()` expira TODAS las columnas (incluida
+    # creado_en, server_default) — un refresh acotado a un solo atributo
+    # no las repone, y __dict__ silenciosamente no las tiene (a diferencia
+    # de un getattr, que sí dispararía la carga). Invisible en SQLite
+    # (mismo motivo que el fix de CRUDBase.create()).
+    await db.refresh(usuario)
     return await _to_out(db, usuario)

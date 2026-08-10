@@ -100,6 +100,7 @@ async def test_crear_usuario_login_y_patch(client: AsyncClient):
     assert crear.status_code == 201, crear.text
     usuario = crear.json()
     assert usuario["estado"] == "ACTIVO"
+    assert usuario["creado_en"] is not None
     assert usuario["rol"]["nombre"] == "NUTRICION"
     assert usuario["almacen_ids"] == [1]
     usuario_id = usuario["usuario_id"]

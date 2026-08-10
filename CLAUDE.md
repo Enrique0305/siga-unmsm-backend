@@ -1827,6 +1827,50 @@ MySQL corriendo para testear lógica de negocio.
    menú vigente. Sin cambios de frontend (el pedido era explícitamente
    para consumo desde otro proyecto, no una pantalla nueva).
 
+   ~~**Bug real: `POST/PATCH /usuarios` — refresh parcial tras commit no
+   repone `creado_en`**~~ ✅ corregido. Encontrado al crear un usuario
+   dedicado para la integración externa del punto anterior: `POST
+   /usuarios` respondía 500 (`pydantic_core.ValidationError: creado_en
+   Field required`). Causa raíz — variante nueva del mismo problema de
+   fondo que `CRUDBase.create()` (columnas `server_default` expiradas),
+   pero en un lugar distinto: `_to_out()` (`api/v1/usuarios.py`) arma la
+   respuesta leyendo `usuario.__dict__` directo (no
+   `UsuarioOut.model_validate(usuario)` con `from_attributes` normal),
+   y tanto `crear_usuario` como `actualizar_usuario` hacían
+   `await db.commit()` (que expira **todas** las columnas del objeto,
+   comportamiento estándar de SQLAlchemy) seguido de un refresh
+   **acotado**: `await db.refresh(usuario, attribute_names=["rol"])`.
+   Ese refresh solo repone lo necesario para la relación `rol` — no las
+   columnas propias como `creado_en` — así que `usuario.__dict__` sigue
+   sin esa clave, y al leerla vía `__dict__` (en vez de `getattr`, que sí
+   dispararía una recarga) Pydantic la ve simplemente ausente. Mismo
+   patrón, invisible en SQLite, que el fix de `CRUDBase.create()` de más
+   arriba — `create_con_almacenes` (`crud/usuario.py`) es además un
+   método a mano que nunca pasó por `CRUDBase.create()`, así que ese fix
+   anterior no lo cubría. **Auditoría del resto del backend**: se
+   revisaron con `grep` los otros 3 usos de
+   `db.refresh(obj, attribute_names=[...])` del código
+   (`crud/pedido_semanal.py`, `crud/planificacion.py::agregar_plato`,
+   `crud/receta.py::recalcular_nutricion`) — ninguno tiene un
+   `db.commit()` intercalado antes del refresh acotado (están justo
+   después de un `flush()`, mismo patrón ya documentado y seguro de la
+   sección 7.2), y ninguno de esos modelos objetivo tiene columnas
+   `server_default`/`Computed` — confirmado que el bug es específico de
+   este archivo, no un patrón repetido en más lugares. Fix: los dos
+   `await db.refresh(usuario, attribute_names=["rol"])` pasan a
+   `await db.refresh(usuario)` (sin restricción) — un refresh completo
+   repone todas las columnas Y sigue recargando `rol` de todas formas
+   (es `lazy="joined"`, se recarga vía el mismo JOIN). Test nuevo:
+   `test_usuarios.py::test_crear_usuario_login_y_patch` gana
+   `assert usuario["creado_en"] is not None`. `pytest -q` completo:
+   42/42 en verde. Verificado contra el despliegue de producción real
+   tras reconstruir la imagen `api`: `POST /usuarios` con rol `COCINA`
+   sin almacenes asignados (usuario dedicado para la integración externa
+   de `/planificacion/menu-diario`) → 201 con `creado_en` presente →
+   login real con ese usuario → JWT válido, `GET /planificacion/
+   menu-diario` → 200, `POST /almacenes` con el mismo token → 403 (RBAC
+   confirmado: puede leer, no puede escribir fuera de su rol).
+
 ## 11. Cómo correr el proyecto
 
 Ver `README.md` en la raíz — resumen: `cp .env.example .env` → cambiar
