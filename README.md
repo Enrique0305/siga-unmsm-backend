@@ -128,6 +128,75 @@ Cada módulo sigue el mismo patrón:
 → `app/api/v1/<modulo>.py` → registrar en `app/api/v1/router.py`. Ver
 sección 3 de `CLAUDE.md` para las convenciones exactas.
 
+## API para consumidores externos
+
+Toda la API es JWT-only — no hay ningún endpoint público en todo el
+backend. Un sistema externo que quiera consumir un recurso tiene que
+autenticarse igual que el frontend.
+
+### Autenticación
+
+```
+POST /api/v1/auth/login
+Content-Type: application/json
+
+{ "correo": "...", "password": "..." }
+```
+
+Devuelve `access_token` (vida corta, `ACCESS_TOKEN_EXPIRE_MINUTES` en
+`.env`, default 30 min) y `refresh_token`. Para una integración de larga
+duración, guardá el `refresh_token` y pedí uno nuevo vía
+`POST /api/v1/auth/refresh` cuando expire, en vez de loguear en cada
+llamada.
+
+**Usuario dedicado, no el admin:** para cualquier integración externa,
+creá un usuario propio con el rol menos privilegiado que alcance
+(`POST /api/v1/usuarios`, rol `ADMIN`-only) — por ejemplo `COCINA` sin
+`almacen_ids` asignados si solo necesita leer catálogos/menús: no puede
+escribir en ningún módulo (RN-20 bloquea cualquier operación sobre
+almacenes que no tenga asignados), y queda aislado de la cuenta admin
+real. Ver la lista de roles en la sección 4 de `CLAUDE.md`.
+
+### `GET /planificacion/menu-diario` — menú del día
+
+Pensado específicamente para consumo externo (ej. una pantalla de cocina,
+una app de comensales) — resuelve en una sola llamada lo que internamente
+son 3 tablas relacionadas (`RacionAnual` → `MenuQuincenal` →
+`MenuDia`/`Plato`).
+
+```
+GET /api/v1/planificacion/menu-diario?fecha=2026-09-03&centro_consumo_id=1
+Authorization: Bearer <access_token>
+```
+
+| Parámetro | Tipo | Requerido |
+|---|---|---|
+| `fecha` | `YYYY-MM-DD` | sí |
+| `centro_consumo_id` | int — ver `GET /api/v1/catalogos/centros-consumo` | sí |
+
+Devuelve una lista (puede haber más de una fila por día — DESAYUNO,
+ALMUERZO, CENA son filas separadas):
+
+```json
+[
+  {
+    "menu_dia_id": 12,
+    "menu_id": 3,
+    "fecha": "2026-09-03",
+    "tipo_servicio": "ALMUERZO",
+    "raciones_programadas": 100,
+    "platos": [
+      { "plato_id": 5, "receta_id": 7, "receta_nombre": "Arroz con pollo", "raciones_override": null }
+    ]
+  }
+]
+```
+
+Solo mira el `MenuQuincenal` en estado `VIGENTE` — un borrador/en revisión
+todavía puede cambiar, así que no es "el" menú real de ese día para un
+consumidor externo. Si no hay menú vigente para esa fecha/centro, devuelve
+`[]` (200), nunca un error.
+
 ## Frontend
 
 El frontend Next.js cubre las pantallas de los 17 módulos de arriba
