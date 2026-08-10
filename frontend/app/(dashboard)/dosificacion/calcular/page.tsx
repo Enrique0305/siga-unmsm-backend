@@ -2,9 +2,18 @@ import { DosificacionForm } from "@/components/catalogo/DosificacionForm";
 import { RecalcularDosificacionButton } from "@/components/catalogo/RecalcularDosificacionButton";
 import { serverFetch } from "@/lib/api/server-fetch";
 import { getSession } from "@/lib/auth/session";
+import type { CentroConsumoOut } from "@/lib/api/generated/model/centroConsumoOut";
 import type { DosificacionDetalleOut } from "@/lib/api/generated/model/dosificacionDetalleOut";
+import type { MenuDiaOut } from "@/lib/api/generated/model/menuDiaOut";
+import type { PageMenuQuincenalOut } from "@/lib/api/generated/model/pageMenuQuincenalOut";
 
 const ROLES_CALCULO = ["ADMIN", "NUTRICION", "LOGISTICA_CENTRAL"];
+
+const TIPO_SERVICIO_LABEL: Record<string, string> = {
+  DESAYUNO: "Desayuno",
+  ALMUERZO: "Almuerzo",
+  CENA: "Cena",
+};
 
 export default async function CalcularDosificacionPage({
   searchParams,
@@ -17,33 +26,36 @@ export default async function CalcularDosificacionPage({
   const menuDiaId = Number(menuDiaIdRaw) || null;
   const centroConsumoId = Number(centroConsumoIdRaw) || null;
 
-  const [session, detalle] = await Promise.all([
+  const [session, menusPage, centros, detalle, dia] = await Promise.all([
     getSession(),
+    serverFetch<PageMenuQuincenalOut>("/planificacion/menus-quincenales?page_size=100"),
+    serverFetch<CentroConsumoOut[]>("/catalogos/centros-consumo"),
     menuDiaId
       ? serverFetch<DosificacionDetalleOut[]>(`/planificacion/dias/${menuDiaId}/dosificacion`)
+      : Promise.resolve(null),
+    menuDiaId
+      ? serverFetch<MenuDiaOut>(`/planificacion/dias/${menuDiaId}`)
       : Promise.resolve(null),
   ]);
 
   const puedeCalcular = session ? ROLES_CALCULO.includes(session.rol) : false;
+  const centro = centros.find((c) => c.centro_consumo_id === centroConsumoId) ?? null;
 
   return (
     <div className="space-y-4">
-      <p className="max-w-2xl text-xs text-text-secondary">
-        El módulo 01 (Planificación de menús) todavía no está construido, así
-        que no hay un selector de día de menú — se ingresa el ID
-        directamente. RN-24: el cálculo es idempotente (recalcular reemplaza
-        el resultado anterior, nunca duplica).
-      </p>
-
       <div className="rounded-lg border border-border/20 bg-white p-4">
-        <DosificacionForm />
+        <DosificacionForm menus={menusPage.items} centros={centros} />
       </div>
 
       {menuDiaId && centroConsumoId && (
         <div className="space-y-3 rounded-lg border border-border/20 bg-white p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h3 className="text-sm font-semibold text-foreground">
-              Día de menú #{menuDiaId} — Centro de consumo #{centroConsumoId}
+              {dia
+                ? `${dia.fecha} — ${TIPO_SERVICIO_LABEL[dia.tipo_servicio] ?? dia.tipo_servicio}`
+                : `Día de menú #${menuDiaId}`}
+              {" · "}
+              {centro?.nombre ?? `Centro de consumo #${centroConsumoId}`}
             </h3>
             {puedeCalcular && (
               <RecalcularDosificacionButton
@@ -58,7 +70,6 @@ export default async function CalcularDosificacionPage({
               <thead className="border-b border-border/20 text-text-secondary">
                 <tr>
                   <th className="py-2 font-medium">Alimento</th>
-                  <th className="py-2 font-medium">Almacén</th>
                   <th className="py-2 font-medium">Raciones</th>
                   <th className="py-2 font-medium">Cant. bruta</th>
                   <th className="py-2 font-medium">Cant. neta</th>
@@ -70,7 +81,6 @@ export default async function CalcularDosificacionPage({
                     <td className="py-2">
                       {fila.alimento_codigo} — {fila.alimento_nombre}
                     </td>
-                    <td className="py-2 text-text-secondary">#{fila.almacen_id}</td>
                     <td className="py-2">{fila.raciones_programadas}</td>
                     <td className="py-2">{fila.cantidad_bruta_requerida} g</td>
                     <td className="py-2">{fila.cantidad_neta_requerida} g</td>

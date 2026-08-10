@@ -1,7 +1,7 @@
 """
-Siembra de datos iniciales: roles, sedes, los 4 almacenes de la
-especificación funcional, un centro de consumo por almacén, unidades de
-medida base, y el primer usuario administrador.
+Siembra de datos iniciales: roles, sedes, los 5 almacenes reales, un
+centro de consumo por almacén, unidades de medida base, y el primer
+usuario administrador.
 
 Uso (con los contenedores levantados):
     docker compose exec api python -m app.seed
@@ -48,7 +48,9 @@ ALMACENES = [
     ("ALM-CU", "Almacén Comedor de Alumnos – Ciudad Universitaria", "Ciudad Universitaria", "ESTUDIANTES"),
     ("ALM-CAN", "Almacén Comedor de Alumnos – Cangallo", "Cangallo", "ESTUDIANTES"),
     ("ALM-VET", "Almacén Comedor de Alumnos – Veterinaria", "Veterinaria", "ESTUDIANTES"),
-    ("ALM-ADM", "Almacén Comedor de Administrativos y Docentes", "Ciudad Universitaria", "ADMINISTRATIVOS_DOCENTES"),
+    ("ALM-ADM", "Almacén Comedor de Administrativos y Docentes – Ciudad Universitaria", "Ciudad Universitaria", "ADMINISTRATIVOS_DOCENTES"),
+    # Comedor nuevo (Cangallo también tiene uno propio, distinto del de Ciudad Universitaria).
+    ("ALM-CAN-ADM", "Almacén Comedor de Administrativos y Docentes – Cangallo", "Cangallo", "ADMINISTRATIVOS_DOCENTES"),
 ]
 
 # Un centro de consumo por almacén — mismo código base, nombre "Comedor <sede>".
@@ -57,7 +59,8 @@ CENTROS_CONSUMO = [
     ("ALM-CU", "Comedor Ciudad Universitaria"),
     ("ALM-CAN", "Comedor Cangallo"),
     ("ALM-VET", "Comedor Veterinaria"),
-    ("ALM-ADM", "Comedor Administrativos y Docentes"),
+    ("ALM-ADM", "Comedor Administrativos y Docentes – Ciudad Universitaria"),
+    ("ALM-CAN-ADM", "Comedor Administrativos y Docentes – Cangallo"),
 ]
 
 # (codigo, nombre) — unidades base para el catálogo logístico (Producto).

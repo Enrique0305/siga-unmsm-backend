@@ -218,7 +218,7 @@ o recetas) · RN-27 (pedido semanal separado por almacén+comedor) · RN-28
 | Auditoría automática (RN-08, evento global, todos los modelos) | `models/auditoria.py`, `core/audit.py` (evento `after_flush` + `ContextVar`), `api/middleware.py` | `GET /auditoria?entidad=&entidad_id=` | ✅ `tests/test_auditoria.py` |
 | Reportes transversales | `crud/reportes.py` | `GET /reportes/valorizacion-inventario`, `/comparativo-consumo`, `/alertas` | ✅ `tests/test_reportes.py` |
 
-**Seed inicial:** `app/seed.py` crea los 8 roles, las 3 sedes, los 4
+**Seed inicial:** `app/seed.py` crea los 8 roles, las 3 sedes, los 5
 almacenes reales, un centro de consumo por almacén, 4 unidades de medida
 base (KG/G/L/UND) y el usuario admin (`docker compose exec api python -m
 app.seed`). Es idempotente — correrlo de nuevo sobre una base ya sembrada
@@ -1988,6 +1988,71 @@ MySQL corriendo para testear lógica de negocio.
    Sin cambios de código de producto más allá del fix de `db/init/` de
    arriba — el dataset en sí vive solo en la base de datos local, no en
    el repo.
+
+   ~~**Calcular dosificación: selects con nombre en vez de IDs
+   numéricos**~~ ✅ implementado. Feedback directo del usuario durante la
+   preparación de la exposición: la pantalla `/dosificacion/calcular`
+   pedía `menu_dia_id`/`centro_consumo_id` como inputs numéricos crudos
+   — hueco heredado de la Sesión 3, cuando Planificación (Módulo 01)
+   todavía no existía y no había de dónde sacar esos IDs con nombre. La
+   Sesión 4 cerró el módulo pero nunca volvió a esta pantalla para
+   conectarla (el enlace que sí se agregó, desde el detalle de un
+   `MenuDia`, solo precarga `menu_dia_id`, nunca `centro_consumo_id`).
+   `components/catalogo/DosificacionForm.tsx` pasa a un select en
+   cascada: **Menú quincenal** (`quincena_inicio — quincena_fin
+   (estado)`) → **Día de menú** (`fecha — tipo_servicio (raciones
+   raciones)`, cargado vía
+   `useListarDiasMenuApiV1.../MenuIdDiasGet` al cambiar de menú) →
+   **Centro de consumo** (nombre real, prop ya fetcheada en el server
+   component). El día seleccionado no vive en un `useState` sincronizado
+   por `useEffect` (dispara el lint `react-hooks/set-state-in-effect`,
+   "cascading renders" — ver `frontend/AGENTS.md`, esta versión de
+   Next.js es estricta con esto): en vez de eso, `menuDiaId` es un valor
+   **derivado en cada render** — `menuDiaIdOverride` guarda solo la
+   elección explícita del usuario, y si esa elección ya no pertenece al
+   menú actualmente cargado (cambiaron de menú), cae al primer día de la
+   lista nueva automáticamente, sin efecto secundario. `page.tsx` (server
+   component) resuelve además el encabezado de resultados
+   (`{fecha} — {tipo_servicio} · {centro.nombre}`) con dos fetches
+   adicionales (`GET /planificacion/dias/{id}` y el propio `centros`
+   fetch ya existente) en vez de `Día de menú #X — Centro de consumo
+   #Y`; la columna "Almacén" de la tabla de resultados se elimina (era
+   redundante — un centro de consumo solo mapea a un almacén, ya
+   visible en el encabezado). `npx tsc --noEmit` + `npx eslint .` + `npx
+   next build` limpios (mismas rutas, sin rutas nuevas). Verificado en
+   el navegador contra el despliegue de producción real: los 3 selects
+   muestran nombres reales (incluidos los 2 comedores de Administrativos
+   y Docentes tras el punto siguiente), cambiar de menú recarga los
+   días correctamente, el cálculo para 2026-09-05 ALMUERZO · Comedor
+   Ciudad Universitaria devuelve la tabla esperada con el encabezado
+   legible.
+
+   ~~**Nuevo comedor de Administrativos y Docentes en Cangallo**~~ ✅
+   agregado a `app/seed.py`. Dato real de la universidad, no solo de la
+   demo: Cangallo tiene su propio comedor de Administrativos y Docentes,
+   distinto del de Ciudad Universitaria — antes `ALM-ADM`/"Comedor
+   Administrativos y Docentes" (sin sede en el nombre) solo existía para
+   Ciudad Universitaria, así que Cangallo no tenía forma de crear una
+   Ración Anual para ese público. Se agregó un 5º almacén
+   (`ALM-CAN-ADM`, sede Cangallo, `tipo_comedor=ADMINISTRATIVOS_DOCENTES`)
+   + su centro de consumo, y se renombró el original a "...– Ciudad
+   Universitaria" para que ambos queden inequívocos en los selects.
+   **Nota para instalaciones ya sembradas con el nombre viejo (sin
+   sufijo)**: como la idempotencia de `CENTROS_CONSUMO` se resuelve por
+   `nombre` (no por código), volver a correr `python -m app.seed` sobre
+   una base que ya tenía "Comedor Administrativos y Docentes" (sin
+   sufijo) crea una fila **nueva** con el nombre "...– Ciudad
+   Universitaria" en vez de renombrar la existente — quedan dos filas
+   apuntando al mismo `ALM-ADM`. Pasó exactamente eso en la base local
+   de esta sesión; se resolvió reiniciando el volumen de MySQL desde
+   cero (opción limpia porque era una base de demo descartable). En una
+   base de producción real con datos que no se puedan perder, habría que
+   corregir la fila existente a mano (`UPDATE centro_consumo SET nombre
+   = '...– Ciudad Universitaria' WHERE nombre = 'Comedor Administrativos
+   y Docentes'`) antes de volver a correr el seed, en vez de dejar que
+   cree el duplicate. Verificado en el navegador: `/planificacion/nuevo`
+   con sede Cangallo ya lista sus 2 centros (Comedor Cangallo y Comedor
+   Administrativos y Docentes – Cangallo).
 
 ## 11. Cómo correr el proyecto
 
