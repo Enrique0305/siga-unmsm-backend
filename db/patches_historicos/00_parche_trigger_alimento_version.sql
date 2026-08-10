@@ -1,6 +1,17 @@
 -- ============================================================================
 -- SIGA-UNMSM · Parche: corrige Error 1442 en alimento_version
 --
+-- MOVIDO desde db/init/02_patch_trigger.sql (bug real, no solo reorganización):
+-- vivía dentro de db/init/, que se ejecuta automático en TODA instalación
+-- nueva — pero 01_schema.sql YA incluye este fix (vigente_key + índice
+-- único), así que el ALTER TABLE de abajo fallaba con "Duplicate column
+-- name" en cualquier `docker compose up` desde cero. MySQL aborta el resto
+-- de scripts de db/init/ apenas uno falla, así que
+-- 03_carga_catalogo_nutricional.sql (el siguiente en orden alfabético)
+-- NUNCA llegaba a correr — ninguna instalación fresca tenía el catálogo de
+-- 1,870 alimentos, en silencio, sin ningún error visible salvo revisar
+-- `docker logs <mysql>`. Encontrado al preparar datos de demo reales.
+--
 -- CAUSA: el trigger BEFORE INSERT ON alimento_version intentaba hacer
 -- UPDATE sobre la propia tabla alimento_version. MySQL prohíbe que un
 -- trigger modifique (INSERT/UPDATE/DELETE) la MISMA tabla que lo disparó

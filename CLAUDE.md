@@ -69,8 +69,12 @@ El esquema (DDL) vive en `db/init/`, se ejecuta automáticamente al primer
 `docker compose up` (contenedor MySQL vacío):
 
 1. `01_schema.sql` — las ~60 tablas, ya con todos los fixes aplicados (ver sección 6)
-2. `02_patch_trigger.sql` — ya integrado en 01, se deja por trazabilidad histórica
-3. `03_carga_catalogo_nutricional.sql` — 1,870 alimentos de la Tabla Peruana de Composición de Alimentos (Colegio de Nutricionistas del Perú)
+2. `03_carga_catalogo_nutricional.sql` — 1,870 alimentos de la Tabla Peruana de Composición de Alimentos (Colegio de Nutricionistas del Perú)
+
+(`02_patch_trigger.sql` ya no existe aquí — se movió a
+`db/patches_historicos/00_parche_trigger_alimento_version.sql` porque
+rompía toda instalación nueva, ver el bug documentado al final de la
+sección 10.)
 
 **Regla de oro:** el ORM (`app/models/*.py`) SOLO mapea tablas que ya
 existen en `01_schema.sql`. Nunca se usa `Base.metadata.create_all()`
@@ -1870,6 +1874,120 @@ MySQL corriendo para testear lógica de negocio.
    login real con ese usuario → JWT válido, `GET /planificacion/
    menu-diario` → 200, `POST /almacenes` con el mismo token → 403 (RBAC
    confirmado: puede leer, no puede escribir fuera de su rol).
+
+   ~~**Bug crítico: `db/init/02_patch_trigger.sql` rompía el catálogo
+   nutricional en toda instalación nueva**~~ ✅ corregido. Encontrado al
+   preparar un dataset de demo realista para una exposición (pidió cargar
+   datos reales de atención — 3 comedores, cifras de desayuno/almuerzo/
+   cena por día de semana/sábado/domingo — y recetas basadas en el
+   catálogo nutricional real de 1,870 alimentos). Al revisar la base
+   local recién levantada, `GET /alimentos` devolvía 0 resultados pese a
+   que `docker compose up` había corrido limpio, sin ningún error visible
+   en la terminal. Causa raíz en `docker logs <mysql>`: `ERROR 1060
+   (42S21): Duplicate column name 'vigente_key'` al ejecutar
+   `02_patch_trigger.sql`. Ese script (ver su propio comentario interno,
+   nunca leído hasta ahora con este bug en mente: *"si ya la agregaste
+   antes, MySQL avisará 'Duplicate column name' y puedes ignorar/
+   comentar esta sección"*) fue escrito como un parche **manual, de una
+   sola vez**, para aplicar a mano sobre una base ya existente que tenía
+   el bug del trigger — nunca debió vivir dentro de `db/init/`, que
+   `docker-entrypoint-initdb.d` ejecuta automáticamente en TODA
+   instalación nueva. Como `01_schema.sql` ya integra ese fix
+   (`vigente_key` + índice único, sección 6 gotcha #1), el `ALTER TABLE`
+   del parche siempre falla en una base fresca — y MySQL aborta el resto
+   de scripts de `docker-entrypoint-initdb.d` apenas uno falla, así que
+   `03_carga_catalogo_nutricional.sql` (el siguiente en orden alfabético)
+   **nunca llegaba a correr**. Ninguna instalación nueva de este proyecto
+   tuvo jamás el catálogo de 1,870 alimentos — probablemente desde que
+   `02_patch_trigger.sql` se agregó a `db/init/`, silenciosamente, sin
+   que ninguna sesión anterior lo notara (nadie había mirado
+   `docker logs` de MySQL específicamente buscando esto; los síntomas
+   — `GET /alimentos` vacío — se habían visto antes en esta sesión y se
+   asumieron un problema de datos, no de inicialización). Fix: se movió
+   el archivo a `db/patches_historicos/00_parche_trigger_alimento_
+   version.sql` (mismo criterio que los demás parches ya "absorbidos" en
+   `01_schema.sql` — ese directorio existe exactamente para esto, ver su
+   `README.md`), dejando `db/init/` con solo `01_schema.sql` +
+   `03_carga_catalogo_nutricional.sql`. Verificado reconstruyendo el
+   volumen de MySQL desde cero dos veces: `docker logs` sin errores,
+   `alimento` con 1,870 filas y `categoria_alimento` con 16, confirmado
+   también vía API (`GET /alimentos` con resultados reales). README.md y
+   esta sección se actualizaron para reflejar la lista correcta de
+   scripts de `db/init/`.
+
+   ~~**Dataset de demo realista para exposición (3 comedores, cifras
+   reales de atención)**~~ ✅ implementado. Pedido explícito del usuario:
+   cargar datos "lo más real posible" para explicar el sistema con
+   ejemplos concretos en una presentación — números reales de atención
+   dados por el usuario (Ciudad Universitaria/Cangallo/Veterinaria,
+   desayuno/almuerzo/cena, diferenciado por día de semana/sábado/domingo
+   y feriado, con Veterinaria sin servicio de fin de semana) y recetas
+   basadas en el catálogo nutricional real (no inventado). Se decidió
+   reiniciar la base local a un estado limpio primero (confirmado con el
+   usuario, acción destructiva) — además de dar datos de demo sin restos
+   de pruebas anteriores, destapó el bug de arriba.
+   Construido con un script Python (`seed_exposicion.py`, fuera del
+   repo — vive en el scratchpad de la sesión, no es parte del código del
+   proyecto) que llama la API real vía `httpx`, en el mismo espíritu que
+   los scripts de la Sesión "recorrido_siga_unmsm" usados para la
+   presentación ejecutiva: 20 productos logísticos con puente real a
+   `alimento_id` (arroz, pollo, papa, aceite, menestras, verduras...),
+   14 recetas VIGENTE (SOPA/ENTRADA/SEGUNDO/BEBIDA/POSTRE) con
+   ingredientes reales de la Tabla Peruana de Composición de Alimentos,
+   3 Raciones Anuales + Menús Quincenales VIGENTE (quincena real
+   2026-09-01..15, incluye 2 sábados y 2 domingos) con 123 `MenuDia`
+   generados programáticamente respetando exactamente las cifras dadas
+   por el usuario por centro/servicio/tipo de día, dosificación (BOM)
+   calculada para los 123 días, 3 Requerimientos Anuales VIGENTE
+   consolidados, 3 proveedores reales con contratos VIGENTE (cantidades
+   dimensionadas a partir del propio requerimiento consolidado, con
+   margen), 3 Órdenes de Compra multialmacén, 9 guías de remisión (3
+   proveedores × 3 almacenes), 9 inspecciones (una con una línea
+   deliberadamente observada → acta → subsanación → reinspección
+   NO_CONFORME → RECHAZADA, para mostrar el ciclo completo y la
+   penalidad automática al cerrar esa OC), 9 ingresos a almacén con
+   stock real y valorizado, movimientos de almacén de ejemplo (ajuste,
+   merma, devolución, inventario físico cerrado con ajuste automático,
+   transferencia con diferencia en recepción), 3 solicitudes de cocina +
+   notas de salida (usando la dosificación real ya calculada), y 3
+   informes de conformidad en distintos estados de pago (uno PAGADO, uno
+   con retención por la penalidad, uno a medio camino).
+   **Dos bugs reales encontrados construyendo el script** (además del de
+   `db/init/` de arriba), ambos de unidades: `numero_raciones_base` en
+   `receta` es el tamaño del lote completo, no una porción — con 100 ahí
+   y cantidades pensadas "por persona" (ej. 120 g de pollo), el sistema
+   interpretaba 120 g como el total para 100 personas (1.2 g/persona);
+   se corrigió a `numero_raciones_base=1`. Y `cantidad_bruta_requerida`
+   de la dosificación (BOM) viene en gramos (misma unidad que la receta),
+   pero `solicitud_cocina_detalle.cantidad_solicitada` espera la unidad
+   del producto (KG/L/UND) — sin la conversión, una solicitud de cocina
+   pedía 375 toneladas de arroz en vez de 375 kg. Ninguno de los dos es
+   un bug del backend: son errores de uso del propio script de siembra,
+   documentados aquí porque el mismo malentendido (gramos vs. unidad del
+   producto, lote completo vs. porción) podría repetirse en una futura
+   sesión que construya datos de prueba similares.
+   RN-16 (`(menú, almacén, semana)` único) también obligó a dar una
+   semana distinta a cada uno de los 3 proveedores para el mismo par
+   menú+almacén, en vez de la misma semana para los tres — no es un bug,
+   es la regla de negocio funcionando como está documentada, solo que el
+   diseño inicial del script no la había tenido en cuenta.
+   Usuario de integración `integracion-menu@unmsm.edu.pe` (rol `COCINA`,
+   sin almacenes) recreado al final, ya que el reset de base lo había
+   borrado. Verificado de punta a punta en el navegador: Dashboard
+   (valorización S/624,081.09, 28 alertas de stock bajo reales),
+   `/planificacion/menus/1` muestra exactamente 700/2500/800 en día de
+   semana, 500/800/600 el sábado, 100/200/100 el domingo para Ciudad
+   Universitaria; `/compras` con las 3 OC en estados distintos (2
+   CERRADO, 1 PENALIZADO); `/recepcion/actas` con el acta RECHAZADA;
+   `/conformidad` con los 3 informes (PAGADO/RECIBIDO/ENVIADO);
+   `/cocina` con las 3 solicitudes DESPACHADA; `/dosificacion/recetas`
+   con las 14 recetas VIGENTE; `/almacenes/stock` con 60 filas de stock
+   real (20 productos × 3 almacenes) valorizadas. `GET /planificacion/
+   menu-diario?fecha=2026-09-05&centro_consumo_id=1` (sábado, Ciudad
+   Universitaria) devuelto en vivo con los platos reales de ese día.
+   Sin cambios de código de producto más allá del fix de `db/init/` de
+   arriba — el dataset en sí vive solo en la base de datos local, no en
+   el repo.
 
 ## 11. Cómo correr el proyecto
 

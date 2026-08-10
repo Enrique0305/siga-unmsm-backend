@@ -41,8 +41,7 @@ Esto levanta:
 - `mysql` en `localhost:3306` — al primer arranque (volumen vacío) ejecuta
   automáticamente, en orden, todo `db/init/`:
   1. `01_schema.sql` — las ~60 tablas del esquema completo
-  2. `02_patch_trigger.sql` — ya integrado en 01, se deja por trazabilidad
-  3. `03_carga_catalogo_nutricional.sql` — 1,870 alimentos de la Tabla
+  2. `03_carga_catalogo_nutricional.sql` — 1,870 alimentos de la Tabla
      Peruana de Composición de Alimentos (Colegio de Nutricionistas)
 - `api` en `localhost:8000` — docs interactivas en
   `http://localhost:8000/api/v1/docs`
