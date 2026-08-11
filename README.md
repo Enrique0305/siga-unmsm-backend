@@ -161,10 +161,10 @@ real. Ver la lista de roles en la sección 4 de `CLAUDE.md`.
 Pensado específicamente para consumo externo (ej. una pantalla de cocina,
 una app de comensales) — resuelve en una sola llamada lo que internamente
 son 3 tablas relacionadas (`RacionAnual` → `MenuQuincenal` →
-`MenuDia`/`Plato`).
+`MenuDia`/`Plato`), enriquecido con el aporte nutricional por servicio.
 
 ```
-GET /api/v1/planificacion/menu-diario?fecha=2026-09-03&centro_consumo_id=1
+GET /api/v1/planificacion/menu-diario?fecha=2026-09-05&centro_consumo_id=1
 Authorization: Bearer <access_token>
 ```
 
@@ -174,27 +174,102 @@ Authorization: Bearer <access_token>
 | `centro_consumo_id` | int — ver `GET /api/v1/catalogos/centros-consumo` | sí |
 
 Devuelve una lista (puede haber más de una fila por día — DESAYUNO,
-ALMUERZO, CENA son filas separadas):
+ALMUERZO, CENA son filas separadas). Ejemplo real (dataset de demo):
 
 ```json
 [
   {
-    "menu_dia_id": 12,
-    "menu_id": 3,
-    "fecha": "2026-09-03",
-    "tipo_servicio": "ALMUERZO",
-    "raciones_programadas": 100,
+    "menu_dia_id": 13,
+    "menu_id": 1,
+    "fecha": "2026-09-05",
+    "tipo_servicio": "DESAYUNO",
+    "raciones_programadas": 500,
     "platos": [
-      { "plato_id": 5, "receta_id": 7, "receta_nombre": "Arroz con pollo", "raciones_override": null }
-    ]
+      { "plato_id": 27, "menu_dia_id": 13, "receta_id": 7, "receta_nombre": "Pan con huevo", "raciones_override": null },
+      { "plato_id": 28, "menu_dia_id": 13, "receta_id": 12, "receta_nombre": "Avena con leche", "raciones_override": null }
+    ],
+    "aporte_nutricional": {
+      "energia_kcal": 556.58,
+      "proteinas_g": 20.71,
+      "grasa_total_g": 13.76,
+      "carbohidratos_g": 90.17,
+      "fibra_g": 1.87,
+      "sodio_mg": 0.0
+    }
+  },
+  {
+    "menu_dia_id": 14,
+    "menu_id": 1,
+    "fecha": "2026-09-05",
+    "tipo_servicio": "ALMUERZO",
+    "raciones_programadas": 800,
+    "platos": [
+      { "plato_id": 29, "menu_dia_id": 14, "receta_id": 8, "receta_nombre": "Sopa de verduras con pollo", "raciones_override": null },
+      { "plato_id": 30, "menu_dia_id": 14, "receta_id": 5, "receta_nombre": "Estofado de pollo con arroz", "raciones_override": null }
+    ],
+    "aporte_nutricional": {
+      "energia_kcal": 910.16,
+      "proteinas_g": 46.78,
+      "grasa_total_g": 21.96,
+      "carbohidratos_g": 135.92,
+      "fibra_g": 5.04,
+      "sodio_mg": 42.97
+    }
+  },
+  {
+    "menu_dia_id": 15,
+    "menu_id": 1,
+    "fecha": "2026-09-05",
+    "tipo_servicio": "CENA",
+    "raciones_programadas": 600,
+    "platos": [
+      { "plato_id": 31, "menu_dia_id": 15, "receta_id": 9, "receta_nombre": "Sopa de fideos con res", "raciones_override": null },
+      { "plato_id": 32, "menu_dia_id": 15, "receta_id": 1, "receta_nombre": "Arroz con pollo", "raciones_override": null }
+    ],
+    "aporte_nutricional": {
+      "energia_kcal": 1092.34,
+      "proteinas_g": 50.73,
+      "grasa_total_g": 25.11,
+      "carbohidratos_g": 166.06,
+      "fibra_g": 3.97,
+      "sodio_mg": 42.47
+    }
   }
 ]
 ```
+
+`aporte_nutricional` es la suma del valor **por ración** (no del lote
+completo) de cada plato del día/servicio — mismo cálculo que usa RN-24
+internamente. Si una receta del menú nunca corrió `recalcular-nutricion`,
+sus valores simplemente no suman (no rompe la respuesta).
 
 Solo mira el `MenuQuincenal` en estado `VIGENTE` — un borrador/en revisión
 todavía puede cambiar, así que no es "el" menú real de ese día para un
 consumidor externo. Si no hay menú vigente para esa fecha/centro, devuelve
 `[]` (200), nunca un error.
+
+### `GET /planificacion/menu-semanal` — menú de 7 días
+
+Misma forma que `/menu-diario` (mismo schema `MenuDiaDetailOut`, incluido
+`aporte_nutricional`), pero trae los 7 días desde `fecha_inicio` en una
+sola llamada — pensado para una vista semanal (desayuno/almuerzo/cena × 7
+días) sin tener que llamar `/menu-diario` siete veces.
+
+```
+GET /api/v1/planificacion/menu-semanal?fecha_inicio=2026-09-01&centro_consumo_id=1
+Authorization: Bearer <access_token>
+```
+
+| Parámetro | Tipo | Requerido |
+|---|---|---|
+| `fecha_inicio` | `YYYY-MM-DD` (primer día de la semana) | sí |
+| `centro_consumo_id` | int — ver `GET /api/v1/catalogos/centros-consumo` | sí |
+
+Devuelve una lista con hasta 21 filas (7 días × 3 servicios), ordenadas
+por fecha y luego por Desayuno→Almuerzo→Cena — cada fila con la misma
+forma que un elemento de `/menu-diario` de arriba. Mismo criterio de
+`VIGENTE`: días sin menú vigente para esa semana/centro simplemente no
+aparecen (nunca error).
 
 ## Frontend
 
