@@ -10,9 +10,11 @@
 #
 # Uso: docker compose -f docker-compose.prod.yml up --build -d
 #
-# Sigue pendiente (no resuelto aquí, requiere dominio/certificado reales):
-# un proxy inverso con TLS delante de la API (puerto 8000) y el frontend
-# (puerto 3000) — ver README.md.
+# Proxy inverso con TLS real (Caddy + Let's Encrypt automático): servicio
+# opcional bajo el profile "proxy" — no arranca con el comando de arriba,
+# solo cuando ya existe un dominio apuntando a este servidor (ver README.md,
+# sección "Producción con dominio real (VPS + TLS)"):
+#   docker compose -f docker-compose.prod.yml --profile proxy up --build -d
 
 services:
   mysql:
@@ -63,5 +65,35 @@ services:
     depends_on:
       - api
 
+  # Opcional (profile "proxy") — Caddy consigue y renueva el certificado TLS
+  # solo, sin certbot/cron aparte. Solo arranca si se pide explícitamente
+  # (--profile proxy) y con DOMAIN definido en .env — ver README.md.
+  caddy:
+    image: caddy:2-alpine
+    container_name: siga_caddy
+    restart: unless-stopped
+    profiles: ["proxy"]
+    environment:
+      # Nota: no se puede usar ${DOMAIN:?...} (obligatorio) aquí — Compose
+      # interpola las variables de TODOS los servicios al parsear el
+      # archivo, incluso los que quedan fuera por "profiles" y nunca
+      # arrancan; eso rompería "up -d api" sin --profile proxy para
+      # cualquiera que no tenga DOMAIN en su .env. Si falta, Caddy
+      # simplemente falla al arrancar (bloque de sitio vacío) — error
+      # server-side, no en el parseo del compose.
+      DOMAIN: ${DOMAIN:-}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+      - frontend
+
 volumes:
   mysql_data:
+  caddy_data:
+  caddy_config:

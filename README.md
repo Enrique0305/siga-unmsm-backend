@@ -93,11 +93,37 @@ docker compose -f docker-compose.prod.yml exec api alembic stamp head
 docker compose -f docker-compose.prod.yml exec api python -m app.seed
 ```
 
-**Pendiente, fuera del alcance de este compose** (requiere un dominio y
-certificado reales, no se puede resolver de forma genérica): un proxy
-inverso con TLS (Nginx/Caddy/Traefik) delante de la API (puerto 8000) y
-el frontend (puerto 3000) — hoy ambos quedan en HTTP plano. Si vas a
-correr esto expuesto a internet, no lo hagas sin ese proxy delante.
+### Producción con dominio real (VPS + TLS)
+
+Sin el proxy de abajo, la API (puerto 8000) y el frontend (puerto 3000)
+quedan en HTTP plano — **no expongas esto a internet sin el proxy
+delante**. El compose incluye un servicio opcional `caddy` (profile
+`proxy`) que consigue y renueva el certificado TLS solo (Let's Encrypt,
+sin certbot/cron aparte), siempre que:
+
+1. Tengas un **VPS/servidor Linux** con los puertos 80 y 443 abiertos al
+   público (no un equipo de escritorio detrás de NAT sin IP fija — el
+   servicio se cae si el equipo se apaga/reinicia, y Let's Encrypt
+   necesita alcanzar el puerto 80 para validar el dominio).
+2. Tengas un **dominio real** (o subdominio, ej. `siga.tu-universidad.pe`)
+   con un registro DNS tipo `A` apuntando a la IP pública de ese VPS —
+   confirmá que ya propagó (`nslookup tu-dominio.pe`) antes de arrancar
+   Caddy, o fallará al pedir el certificado.
+
+```bash
+# en .env, además de lo de arriba:
+# DOMAIN=tu-dominio.pe
+# BACKEND_CORS_ORIGINS=https://tu-dominio.pe
+
+docker compose -f docker-compose.prod.yml --profile proxy up --build -d
+```
+
+Un solo dominio para todo: Caddy enruta `/api/*` (path completo, incluido
+`/api/v1` — no lo reescribe, ver `Caddyfile`) al contenedor `api`, y todo
+lo demás al `frontend`. Para consumidores externos (ver sección de abajo),
+la base pasa de `http://localhost:8000/api/v1` a
+`https://tu-dominio.pe/api/v1` — el resto del contrato (auth, endpoints,
+formas de respuesta) no cambia.
 
 ## Módulos implementados
 

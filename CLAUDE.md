@@ -2142,6 +2142,58 @@ MySQL corriendo para testear lógica de negocio.
    `netstat -ano | grep <puerto>` por un proceso de verificación anterior
    todavía vivo, antes de asumir que el contenedor tiene código viejo.
 
+   ~~**Proxy inverso con TLS real (Caddy) para el consumidor externo del
+   menú**~~ ✅ implementado. El otro proyecto que va a consumir
+   `/menu-diario`/`/menu-semanal` pidió la `MENU_API_URL` real y el
+   mecanismo de auth para cerrar su adaptador. El mecanismo de auth ya
+   estaba resuelto (JWT-only, sin variante de API key/IP allowlist/sin
+   auth — ver "API para consumidores externos" en README.md); lo que
+   faltaba de verdad era la URL, bloqueada porque nunca se armó el proxy
+   con TLS que sección 11 dejaba pendiente ("requiere un dominio y
+   certificado reales"). Se resolvió el lado que sí depende de código —
+   dominio real y VPS quedan como decisión del usuario, todavía sin
+   asignar.
+   **Caddy en vez de Nginx+Certbot**: un solo contenedor consigue y
+   renueva el certificado Let's Encrypt solo, sin cron de renovación
+   aparte ni configuración manual de ACME — la alternativa más simple
+   para un stack que ya no tiene ningún otro proxy. Nuevo `Caddyfile` en
+   la raíz: `{$DOMAIN}` enruta `/api/*` (con `handle`, no `handle_path` —
+   preserva el path completo incluido `/api/v1`, ya que FastAPI monta ahí
+   su propio prefijo y no espera que se lo recorten) al contenedor `api`,
+   todo lo demás al `frontend`. `docker-compose.prod.yml` gana el
+   servicio `caddy` (`profiles: ["proxy"]` — no arranca con el flujo
+   normal `up -d`, solo con `--profile proxy` explícito) + volúmenes
+   `caddy_data`/`caddy_config` para persistir certificados entre
+   reinicios. `.env.example` gana `DOMAIN=` documentado.
+   **Bug real encontrado y corregido durante la verificación**: la
+   primera versión usaba `DOMAIN: ${DOMAIN:?falta DOMAIN...}` (variable
+   obligatoria) en el servicio `caddy` — pero Compose interpola las
+   variables de **todos** los servicios al parsear el archivo, incluso
+   los que quedan fuera por `profiles` y nunca van a arrancar; eso rompía
+   `docker compose -f docker-compose.prod.yml up -d api` (el flujo normal
+   sin proxy, usado en producción real desde la Sesión de despliegue) con
+   un error de interpolación aunque nadie hubiera pedido `--profile
+   proxy`. Confirmado reproduciendo el fallo contra el propio despliegue
+   corriendo en este momento. Fix: `${DOMAIN:-}` (con default vacío) — si
+   falta, Caddy simplemente no arranca bien *cuando alguien sí pide el
+   profile*, error del lado del servidor en vez de romper el parseo del
+   compose para todos.
+   Verificado: `docker compose -f docker-compose.prod.yml config --quiet`
+   (con y sin `--profile proxy`) limpio; `docker compose -f
+   docker-compose.prod.yml up -d api frontend` (flujo normal) sigue
+   levantando exactamente los mismos 2 contenedores que antes, sin
+   `siga_caddy`; `caddy validate` contra el `Caddyfile` real (con un
+   `DOMAIN` de prueba) confirma sintaxis válida y que Caddy infiere solo
+   HTTPS automático + redirect HTTP→HTTPS para el dominio. No se pudo
+   verificar la emisión real de un certificado (necesita un dominio DNS
+   real apuntando a un servidor con el puerto 80 accesible desde
+   internet, ninguno de los dos existe todavía) — documentado como
+   siguiente paso real, no simulable localmente. README.md gana la
+   sección "Producción con dominio real (VPS + TLS)" con los
+   prerrequisitos exactos (VPS con 80/443 abiertos, registro DNS tipo A
+   ya propagado) y el comando `--profile proxy`; la sección de
+   `/menu-diario` ya no depende de asumir `localhost:8000` como base real.
+
 ## 11. Cómo correr el proyecto
 
 Ver `README.md` en la raíz — resumen: `cp .env.example .env` → cambiar

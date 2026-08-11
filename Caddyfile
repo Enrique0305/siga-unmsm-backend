@@ -1,0 +1,14 @@
+# Proxy inverso con TLS automático (Let's Encrypt) para el despliegue de
+# producción con dominio real — ver README.md, sección "Producción con
+# dominio real (VPS + TLS)". Un solo dominio: /api/* va al backend
+# (preserva el path completo, incluido /api/v1 — el propio FastAPI ya
+# monta sus rutas bajo ese prefijo, así que NO se debe reescribir aquí),
+# todo lo demás va al frontend Next.js.
+{$DOMAIN} {
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+	handle {
+		reverse_proxy frontend:3000
+	}
+}
