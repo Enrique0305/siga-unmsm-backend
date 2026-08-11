@@ -2054,6 +2054,94 @@ MySQL corriendo para testear lógica de negocio.
    con sede Cangallo ya lista sus 2 centros (Comedor Cangallo y Comedor
    Administrativos y Docentes – Cangallo).
 
+   ~~**Menú semanal + aporte nutricional enriquecido en menú diario**~~ ✅
+   implementado. Pedido explícito del usuario, con una imagen de
+   referencia (infografía "MENÚ DEL DÍA" con 3 columnas Desayuno/Almuerzo/
+   Cena, cada una con su sección "APORTE NUTRICIONAL": KCAL, G
+   CARBOHIDRATOS, G PROTEÍNAS, G GRASAS): (1) un recurso semanal — mismo
+   espíritu que `/menu-diario` (Sesión reciente, consumo externo) pero
+   para 7 días de una vez —, y (2) enriquecer el propio `/menu-diario`
+   con el aporte nutricional por día/servicio, no solo listar los platos.
+   Solo backend/API — el pedido fue explícitamente "la API para ver el
+   menú", sin pantalla nueva.
+   **Fuente del aporte nutricional**: `RecetaValorNutricional` ya
+   guardaba, además de los `_total` (todo el lote), los campos `_racion`
+   (`energia_kcal_racion`, `proteinas_g_racion`, `grasa_total_g_racion`,
+   `carbohidratos_g_racion`, `fibra_g_racion`, `sodio_mg_racion`) — el
+   valor nutricional de **una porción**, ya calculado desde el Módulo 1A
+   (RN-24) y nunca antes expuesto en ningún endpoint. El aporte de un
+   día/servicio (ej. Desayuno = pan con huevo + avena) es la **suma** de
+   esos campos `_racion` de cada plato — no se multiplica por
+   `raciones_programadas` (eso daría el total del lote completo del
+   comedor, no el aporte nutricional "por persona" que muestra la
+   infografía de referencia).
+   **Backend**: `schemas/planificacion.py::AporteNutricionalOut` (nuevo)
+   con `from_platos(platos)` — suma los 6 campos `_racion` de
+   `plato.receta.valor_nutricional`, salta (`continue`) si una receta
+   nunca corrió `recalcular-nutricion` (`valor_nutricional is None`) en
+   vez de romper la suma con `None + float`; redondea a 2 decimales.
+   `MenuDiaDetailOut` (ya existente, usado por `/dias/{id}` y
+   `/menu-diario`) gana el campo `aporte_nutricional` + un
+   `from_model(obj)` centralizado — reemplaza la construcción manual
+   campo-por-campo que tenían ambos endpoints, ahora ambos llaman al
+   mismo `from_model`. `crud/planificacion.py` — nueva constante
+   compartida `_CARGA_PLATOS_CON_NUTRICION` (`selectinload` encadenado
+   `MenuDia.platos → Plato.receta → Receta.valor_nutricional`, gotcha
+   async #1 — sin esto, sumar `_racion` en `from_platos` dispararía
+   lazy-load); reemplaza el `selectinload` más corto que ya tenían
+   `get_con_platos`/`get_menu_diario`, y lo reutiliza el método nuevo
+   `CRUDMenuDia.get_menu_semanal(db, fecha_inicio, centro_consumo_id)`
+   (mismo `JOIN MenuDia→MenuQuincenal→RacionAnual` + filtro
+   `MenuQuincenal.estado == "VIGENTE"` que `get_menu_diario` — un menú
+   BORRADOR/EN_REVISION/APROBADO todavía puede cambiar, mismo criterio ya
+   documentado ahí — sobre un rango `fecha.between(fecha_inicio,
+   fecha_inicio+6)`). `tipo_servicio` es texto libre
+   (DESAYUNO/ALMUERZO/CENA), así que el orden dentro de cada día
+   (Desayuno→Almuerzo→Cena, no alfabético) se resuelve en Python con un
+   `dict` de prioridad tras la query, no en el `ORDER BY` de SQL.
+   Endpoint nuevo `GET /planificacion/menu-semanal?fecha_inicio=&
+   centro_consumo_id=` (`api/v1/planificacion.py`, mismo
+   `Depends(get_current_user)` sin rol específico que `/menu-diario` —
+   JWT-only, ver README "API para consumidores externos").
+   Test nuevo `test_planificacion.py::
+   test_menu_diario_aporte_nutricional_y_semanal`: dos recetas VIGENTE
+   con nutrición calculada, un día de menú con ambas como platos; suma
+   esperada calculada leyendo `energia_kcal_racion` de cada receta vía
+   `GET /recetas/{id}` y comparando con `pytest.approx` contra
+   `aporte_nutricional.energia_kcal` de `/menu-diario`; `/menu-semanal`
+   con el mismo rango devuelve el mismo día enriquecido; un
+   `fecha_inicio` fuera de rango devuelve `[]`. `pytest -q` completo:
+   43/43 en verde.
+   **Verificado contra el despliegue de producción real** (no solo
+   SQLite descartable) usando el dataset de exposición ya cargado: login
+   real → `GET /planificacion/menu-diario?fecha=2026-09-05&
+   centro_consumo_id=1` (sábado, Ciudad Universitaria) devolvió los 3
+   servicios con aporte nutricional real y distinto por servicio (ej.
+   Desayuno 556.58 kcal, Almuerzo 910.16 kcal, Cena 1092.34 kcal, cifras
+   de la Tabla Peruana real, no sintéticas) → `GET /planificacion/
+   menu-semanal?fecha_inicio=2026-09-01&centro_consumo_id=1` devolvió los
+   21 registros esperados (7 días × 3 servicios) con
+   `raciones_programadas` coincidiendo exactamente con las cifras de
+   asistencia dadas por el usuario para cada tipo de día (700/2500/800
+   entre semana, 500/800/600 el sábado 09-05, 100/200/100 el domingo
+   09-06). **Nota operativa encontrada durante esta verificación, sin
+   relación con el código**: un proceso Python huérfano de una sesión de
+   verificación anterior (un backend descartable con SQLite, usado para
+   probar el frontend en el navegador) seguía corriendo en el host y
+   ocupando `127.0.0.1:8000` — como Windows prioriza el bind más
+   específico (`127.0.0.1`) sobre el genérico de Docker
+   (`0.0.0.0`), cualquier `curl http://localhost:8000` en esta
+   verificación golpeaba silenciosamente ese proceso viejo (con el login
+   antiguo basado en `OAuth2PasswordRequestForm`) en vez del contenedor
+   real — nunca se pudo detener ese proceso (bloqueado por el
+   clasificador de permisos de auto mode), así que la verificación real
+   se hizo con `docker exec siga_api python -c "..."` (dentro del propio
+   contenedor, sin pasar por el puerto del host en absoluto). Vale la
+   pena recordar en sesiones futuras: si `curl localhost:<puerto>`
+   devuelve algo inesperado tras reconstruir un contenedor, comprobar
+   `netstat -ano | grep <puerto>` por un proceso de verificación anterior
+   todavía vivo, antes de asumir que el contenedor tiene código viejo.
+
 ## 11. Cómo correr el proyecto
 
 Ver `README.md` en la raíz — resumen: `cp .env.example .env` → cambiar

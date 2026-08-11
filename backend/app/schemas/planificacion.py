@@ -93,8 +93,58 @@ class PlatoOut(BaseModel):
         )
 
 
+class AporteNutricionalOut(BaseModel):
+    """Suma del valor nutricional POR RACIÓN (`RecetaValorNutricional.*_racion`)
+    de todos los platos de un día de menú — ej. Desayuno = pan + ponche,
+    cada uno ya expresado por porción, no por el tamaño del lote. Recetas
+    sin `valor_nutricional` calculado todavía (nunca se corrió
+    `recalcular-nutricion`) aportan 0, no rompen la suma."""
+
+    energia_kcal: float
+    proteinas_g: float
+    grasa_total_g: float
+    carbohidratos_g: float
+    fibra_g: float
+    sodio_mg: float
+
+    @classmethod
+    def from_platos(cls, platos: list) -> "AporteNutricionalOut":
+        totales = {
+            "energia_kcal": 0.0,
+            "proteinas_g": 0.0,
+            "grasa_total_g": 0.0,
+            "carbohidratos_g": 0.0,
+            "fibra_g": 0.0,
+            "sodio_mg": 0.0,
+        }
+        for plato in platos:
+            valor = plato.receta.valor_nutricional
+            if valor is None:
+                continue
+            totales["energia_kcal"] += valor.energia_kcal_racion or 0
+            totales["proteinas_g"] += valor.proteinas_g_racion or 0
+            totales["grasa_total_g"] += valor.grasa_total_g_racion or 0
+            totales["carbohidratos_g"] += valor.carbohidratos_g_racion or 0
+            totales["fibra_g"] += valor.fibra_g_racion or 0
+            totales["sodio_mg"] += valor.sodio_mg_racion or 0
+        return cls(**{k: round(v, 2) for k, v in totales.items()})
+
+
 class MenuDiaDetailOut(MenuDiaOut):
     platos: list[PlatoOut]
+    aporte_nutricional: AporteNutricionalOut
+
+    @classmethod
+    def from_model(cls, obj) -> "MenuDiaDetailOut":
+        return cls(
+            menu_dia_id=obj.menu_dia_id,
+            menu_id=obj.menu_id,
+            fecha=obj.fecha,
+            tipo_servicio=obj.tipo_servicio,
+            raciones_programadas=obj.raciones_programadas,
+            platos=[PlatoOut.from_model(p) for p in obj.platos],
+            aporte_nutricional=AporteNutricionalOut.from_platos(obj.platos),
+        )
 
 
 class MenuQuincenalDetailOut(MenuQuincenalOut):

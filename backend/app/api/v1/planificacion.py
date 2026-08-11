@@ -237,14 +237,7 @@ async def obtener_dia_con_platos(
     dia = await menu_dia_repo.get_con_platos(db, menu_dia_id)
     if dia is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Día de menú no encontrado")
-    return MenuDiaDetailOut(
-        menu_dia_id=dia.menu_dia_id,
-        menu_id=dia.menu_id,
-        fecha=dia.fecha,
-        tipo_servicio=dia.tipo_servicio,
-        raciones_programadas=dia.raciones_programadas,
-        platos=[PlatoOut.from_model(p) for p in dia.platos],
-    )
+    return MenuDiaDetailOut.from_model(dia)
 
 
 @router.post("/dias/{menu_dia_id}/platos", response_model=PlatoOut, status_code=status.HTTP_201_CREATED)
@@ -268,7 +261,7 @@ async def agregar_plato_a_dia(
 @router.get(
     "/menu-diario",
     response_model=list[MenuDiaDetailOut],
-    summary="Menú del día para un centro de consumo (para consumo externo)",
+    summary="Menú del día para un centro de consumo, con aporte nutricional (para consumo externo)",
 )
 async def obtener_menu_diario(
     fecha: date,
@@ -280,17 +273,25 @@ async def obtener_menu_diario(
     (menú quincenal vigente -> sus días -> detalle del día). Solo mira el
     MenuQuincenal en estado VIGENTE (ver docstring de get_menu_diario)."""
     dias = await menu_dia_repo.get_menu_diario(db, fecha, centro_consumo_id)
-    return [
-        MenuDiaDetailOut(
-            menu_dia_id=dia.menu_dia_id,
-            menu_id=dia.menu_id,
-            fecha=dia.fecha,
-            tipo_servicio=dia.tipo_servicio,
-            raciones_programadas=dia.raciones_programadas,
-            platos=[PlatoOut.from_model(p) for p in dia.platos],
-        )
-        for dia in dias
-    ]
+    return [MenuDiaDetailOut.from_model(dia) for dia in dias]
+
+
+@router.get(
+    "/menu-semanal",
+    response_model=list[MenuDiaDetailOut],
+    summary="Menú de la semana (fecha_inicio + 6 días) para un centro de consumo, con aporte nutricional",
+)
+async def obtener_menu_semanal(
+    fecha_inicio: date,
+    centro_consumo_id: int,
+    db: AsyncSession = Depends(get_db),
+    _current: CurrentUser = Depends(get_current_user),
+) -> list[MenuDiaDetailOut]:
+    """Mismo criterio que /menu-diario (solo MenuQuincenal VIGENTE) pero para
+    los 7 días desde fecha_inicio — pensado para armar la vista semanal
+    (desayuno/almuerzo/cena x 7 días) de un solo llamado."""
+    dias = await menu_dia_repo.get_menu_semanal(db, fecha_inicio, centro_consumo_id)
+    return [MenuDiaDetailOut.from_model(dia) for dia in dias]
 
 
 # ------------------------------------------------------- dosificación (BOM)

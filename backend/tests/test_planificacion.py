@@ -305,6 +305,89 @@ async def test_menu_diario(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_menu_diario_aporte_nutricional_y_semanal(client: AsyncClient):
+    """El aporte nutricional de un dia/servicio es la suma del valor POR
+    RACION de cada plato (no del lote completo) -- y /menu-semanal expone
+    los mismos dias enriquecidos, para un rango de 7 dias."""
+    headers = _headers_admin()
+
+    racion_resp = await client.post(
+        "/api/v1/planificacion/raciones-anuales",
+        headers=headers,
+        json={"sede_id": 1, "centro_consumo_id": 1, "anio": 2027, "poblacion_atendida": 100, "raciones_dia": 100},
+    )
+    assert racion_resp.status_code == 201, racion_resp.text
+    racion_id = racion_resp.json()["racion_anual_id"]
+
+    menu_resp = await client.post(
+        "/api/v1/planificacion/menus-quincenales",
+        headers=headers,
+        json={"racion_anual_id": racion_id, "quincena_inicio": "2027-03-01", "quincena_fin": "2027-03-15"},
+    )
+    assert menu_resp.status_code == 201, menu_resp.text
+    menu_id = menu_resp.json()["menu_id"]
+
+    dia_resp = await client.post(
+        f"/api/v1/planificacion/menus-quincenales/{menu_id}/dias",
+        headers=headers,
+        json={"fecha": "2027-03-03", "tipo_servicio": "DESAYUNO", "raciones_programadas": 100},
+    )
+    assert dia_resp.status_code == 201, dia_resp.text
+    menu_dia_id = dia_resp.json()["menu_dia_id"]
+
+    # dos platos en el mismo desayuno (ej. "pan" + "ponche"), cada receta ya
+    # trae su propio valor nutricional POR RACION calculado al crearla.
+    _, receta_1_id = await _crear_receta_vigente(client, headers, "NUTRIA")
+    _, receta_2_id = await _crear_receta_vigente(client, headers, "NUTRIB")
+    for receta_id in (receta_1_id, receta_2_id):
+        r = await client.post(
+            f"/api/v1/planificacion/dias/{menu_dia_id}/platos", headers=headers, json={"receta_id": receta_id}
+        )
+        assert r.status_code == 201, r.text
+
+    receta_1 = await client.get(f"/api/v1/recetas/{receta_1_id}", headers=headers)
+    receta_2 = await client.get(f"/api/v1/recetas/{receta_2_id}", headers=headers)
+    esperado_kcal = (
+        receta_1.json()["valor_nutricional"]["energia_kcal_racion"]
+        + receta_2.json()["valor_nutricional"]["energia_kcal_racion"]
+    )
+
+    for estado in ("EN_REVISION", "APROBADO", "VIGENTE"):
+        r = await client.patch(
+            f"/api/v1/planificacion/menus-quincenales/{menu_id}/estado", headers=headers, json={"estado": estado}
+        )
+        assert r.status_code == 200, r.text
+
+    diario = await client.get(
+        "/api/v1/planificacion/menu-diario", headers=headers, params={"fecha": "2027-03-03", "centro_consumo_id": 1}
+    )
+    assert diario.status_code == 200, diario.text
+    dias = diario.json()
+    assert len(dias) == 1
+    assert len(dias[0]["platos"]) == 2
+    assert dias[0]["aporte_nutricional"]["energia_kcal"] == pytest.approx(esperado_kcal)
+
+    semanal = await client.get(
+        "/api/v1/planificacion/menu-semanal",
+        headers=headers,
+        params={"fecha_inicio": "2027-03-01", "centro_consumo_id": 1},
+    )
+    assert semanal.status_code == 200, semanal.text
+    dias_semana = semanal.json()
+    assert len(dias_semana) == 1
+    assert dias_semana[0]["menu_dia_id"] == menu_dia_id
+    assert dias_semana[0]["aporte_nutricional"]["energia_kcal"] == pytest.approx(esperado_kcal)
+
+    # fuera del rango de 7 dias: sin resultados
+    otra_semana = await client.get(
+        "/api/v1/planificacion/menu-semanal",
+        headers=headers,
+        params={"fecha_inicio": "2027-03-10", "centro_consumo_id": 1},
+    )
+    assert otra_semana.json() == []
+
+
+@pytest.mark.asyncio
 async def test_catalogos_sedes_y_centros_consumo(client: AsyncClient):
     headers = _headers_admin()
 
